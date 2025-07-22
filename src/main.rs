@@ -55,14 +55,14 @@ async fn pdu_handler(
     );
 
     if let Err(e) = stream.write_all(request.as_bytes()).await {
-        eprintln!("Write error: {}", e);
+        eprintln!("Write error `{}`: {}", target, e);
         return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write request").into_response();
     }
 
     let mut response: Vec<u8> = Vec::new();
 
     if let Err(e) = stream.read_to_end(&mut response).await {
-        eprintln!("Read error: {}", e);
+        eprintln!("Read error `{}`: {}", target, e);
         return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read response").into_response();
     }
 
@@ -126,8 +126,14 @@ async fn pdu_handler(
         metric_families.extend(power_gauge_vec.collect());
         metric_families.extend(power_factor_gauge_vec.collect());
         metric_families.extend(energy_gauge_vec.collect());
-        metric_families.extend(temp_gauge_vec.collect());
-        metric_families.extend(hum_gauge_vec.collect());
+
+        if !temp_gauge_vec.collect()[0].metric.is_empty() {
+            metric_families.extend(temp_gauge_vec.collect());
+        }
+
+        if !hum_gauge_vec.collect()[0].metric.is_empty() {
+            metric_families.extend(hum_gauge_vec.collect());
+        }
 
         let mut buffer = Vec::new();
         let encoder = TextEncoder::new();
