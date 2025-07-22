@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State}, response::IntoResponse, routing::get, Router
+    extract::{Query, State}, http::StatusCode, response::IntoResponse, routing::get, Router
 };
 use std::{collections::HashMap, sync::Arc};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -30,14 +30,14 @@ async fn pdu_handler(
 ) -> impl IntoResponse {
     let target = match params.get("target") {
         Some(value) => value,
-        None => return ("Missing `target` parameter").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "Missing `target` parameter").into_response(),
     };
 
     let endpoint = format!("{}:80", target);
 
     let mut stream = match tokio::net::TcpStream::connect(endpoint).await {
         Ok(stream) => stream,
-        Err(_) => return ("Failed to connect to target").into_response(),
+        Err(_) => return (StatusCode::NOT_FOUND, "Failed to connect to target").into_response(),
     };
 
     let request = format!(
@@ -51,14 +51,14 @@ async fn pdu_handler(
 
     if let Err(e) = stream.write_all(request.as_bytes()).await {
         eprintln!("Write error: {}", e);
-        return ("Failed to write request").into_response();
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to write request").into_response();
     }
 
     let mut response: Vec<u8> = Vec::new();
 
     if let Err(e) = stream.read_to_end(&mut response).await {
         eprintln!("Read error: {}", e);
-        return ("Failed to read response").into_response();
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read response").into_response();
     }
 
     let response_text = String::from_utf8_lossy(&response);
@@ -67,6 +67,11 @@ async fn pdu_handler(
         let body = &response_text[pos + 4..];
 
         let s: Vec<&str> = body.split("?").collect();
+
+        if s.len() != 2016 {
+            return (StatusCode::UNPROCESSABLE_ENTITY, format!("Not a valid PDU device!")).into_response();
+        }
+
         let mut response = String::new();
 
         for i in (0..2016).step_by(63) {
@@ -85,8 +90,8 @@ async fn pdu_handler(
             }
             response.push_str("---\n\n");
         }
-        (format!("{}", response)).into_response()
+        (StatusCode::OK, format!("{}", response)).into_response()
     } else {
-        (format!("No body found in response")).into_response()
+        (StatusCode::BAD_REQUEST, format!("No body found in response")).into_response()
     }
 }
