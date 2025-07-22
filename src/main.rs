@@ -1,6 +1,11 @@
 use axum::{
-    extract::{Query, State}, http::StatusCode, response::IntoResponse, routing::get, Router
+    Router,
+    extract::{Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
 };
+use prometheus::{Encoder, GaugeVec, Opts, TextEncoder, core::Collector};
 use std::{collections::HashMap, sync::Arc};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -72,25 +77,63 @@ async fn pdu_handler(
             return (StatusCode::UNPROCESSABLE_ENTITY, format!("Not a valid PDU device!")).into_response();
         }
 
-        let mut response = String::new();
+        let current_opts = Opts::new("current", "Current in ampere");
+        let current_gauge_vec = GaugeVec::new(current_opts, &["address"]).unwrap();
+
+        let voltage_opts = Opts::new("voltage", "Voltage in volt");
+        let voltage_gauge_vec = GaugeVec::new(voltage_opts, &["address"]).unwrap();
+
+        let power_opts = Opts::new("power", "Power in watt");
+        let power_gauge_vec = GaugeVec::new(power_opts, &["address"]).unwrap();
+
+        let power_factor_opts = Opts::new("power_factor", "Power factor in ratio (0.0 - 1.0)");
+        let power_factor_gauge_vec = GaugeVec::new(power_factor_opts, &["address"]).unwrap();
+
+        let energy_opts = Opts::new("energy", "Energy in kWh");
+        let energy_gauge_vec = GaugeVec::new(energy_opts, &["address"]).unwrap();
+
+        let temp_opts = Opts::new("temperature", "Temperature in celsius");
+        let temp_gauge_vec = GaugeVec::new(temp_opts, &["address", "channel"]).unwrap();
+
+        let hum_opts = Opts::new("humidity", "Humidity in percent");
+        let hum_gauge_vec = GaugeVec::new(hum_opts, &["address", "channel"]).unwrap();
+
+        let mut addr: u8 = 1;
 
         for i in (0..2016).step_by(63) {
-            response.push_str(&format!("{} {}\n", s[i], s[i+1]));
-            response.push_str(&format!("{} A\n", s[i+10]));
-            response.push_str(&format!("{} V\n", s[i+11]));
-            response.push_str(&format!("{} P(w)\n", s[i+12]));
-            response.push_str(&format!("{} Pf\n", s[i+13]));
-            response.push_str(&format!("{} Ep(kWh)\n", s[i+14]));
+            let address = format!("{addr}");
+            addr += 1;
+
+            current_gauge_vec.with_label_values(&[&address]).set(s[i+10].parse::<f64>().unwrap_or(0.0));
+            voltage_gauge_vec.with_label_values(&[&address]).set(s[i+11].parse::<f64>().unwrap_or(0.0));
+            power_gauge_vec.with_label_values(&[&address]).set(s[i+12].parse::<f64>().unwrap_or(0.0));
+            power_factor_gauge_vec.with_label_values(&[&address]).set(s[i+13].parse::<f64>().unwrap_or(0.0));
+            energy_gauge_vec.with_label_values(&[&address]).set(s[i+14].parse::<f64>().unwrap_or(0.0));
+
             for j in 0..16 {
                 let index = i + 15 + (j * 3);
-                if index + 2 < s.len() && !s[index].is_empty() {
-                    response.push_str(&format!("temp: {}\n", s[index + 1]));
-                    response.push_str(&format!("hum: {}\n", s[index + 2]));
+                let channel = format!("{j}");
+                if !s[index].is_empty() {
+                    temp_gauge_vec.with_label_values(&[&address, &channel]).set(s[index+1].parse::<f64>().unwrap_or(0.0));
+                    hum_gauge_vec.with_label_values(&[&address, &channel]).set(s[index+2].parse::<f64>().unwrap_or(0.0));
                 }
             }
-            response.push_str("---\n\n");
         }
-        (StatusCode::OK, format!("{}", response)).into_response()
+
+        let mut metric_families = Vec::new();
+        metric_families.extend(current_gauge_vec.collect());
+        metric_families.extend(voltage_gauge_vec.collect());
+        metric_families.extend(power_gauge_vec.collect());
+        metric_families.extend(power_factor_gauge_vec.collect());
+        metric_families.extend(energy_gauge_vec.collect());
+        metric_families.extend(temp_gauge_vec.collect());
+        metric_families.extend(hum_gauge_vec.collect());
+
+        let mut buffer = Vec::new();
+        let encoder = TextEncoder::new();
+        encoder.encode(&metric_families, &mut buffer).unwrap();
+
+        (StatusCode::OK, String::from_utf8(buffer).unwrap()).into_response()
     } else {
         (StatusCode::BAD_REQUEST, format!("No body found in response")).into_response()
     }
