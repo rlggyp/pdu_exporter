@@ -1,41 +1,36 @@
 use axum::{
     Router,
-    extract::{Query, State},
+    extract::Query,
     http::StatusCode,
     response::IntoResponse,
     routing::get,
 };
+use base64::Engine;
 use prometheus::{Encoder, GaugeVec, Opts, TextEncoder, core::Collector};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-#[derive(Debug)]
-struct AppState {
-    authorization: String,
-}
 
 #[tokio::main]
 async fn main() {
-    let authorization = match std::env::var("AUTHORIZATION") {
-        Ok(value) => value,
-        Err(e) => panic!("{e}"),
-    };
-
     let app = Router::new()
-        .route("/pdu", get(pdu_handler))
-        .with_state(Arc::new(AppState { authorization }));
+        .route("/pdu", get(pdu_handler));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let bind_address = "0.0.0.0:9117";
+    println!("Server running on http://{}", bind_address);
+
+    let listener = tokio::net::TcpListener::bind(bind_address).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn pdu_handler(
-    State(state): State<Arc<AppState>>,
-    Query(params): Query<HashMap<String, String>>,
-) -> impl IntoResponse {
+async fn pdu_handler(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
     let target = match params.get("target") {
         Some(value) => value,
         None => return (StatusCode::BAD_REQUEST, "Missing `target` parameter").into_response(),
+    };
+
+    let authorization = match params.get("authorization") {
+        Some(value) => base64::engine::general_purpose::STANDARD_NO_PAD.encode(value),
+        None => return (StatusCode::BAD_REQUEST, "Missing `authorization` parameter").into_response(),
     };
 
     let endpoint = format!("{}:80", target);
@@ -48,10 +43,10 @@ async fn pdu_handler(
     let request = format!(
         "GET /status.cgi HTTP/1.1\r\n\
         Host: {}\r\n\
-        Authorization: {}\r\n\
+        Authorization: Basic {}\r\n\
         Connection: close\r\n\
         \r\n",
-        target, state.authorization
+        target, authorization
     );
 
     if let Err(e) = stream.write_all(request.as_bytes()).await {
@@ -73,7 +68,8 @@ async fn pdu_handler(
 
         let s: Vec<&str> = body.split("?").collect();
 
-        if s.len() != 2016 {
+        const EXPECTED_LENGTH: usize = 2016;
+        if s.len() != EXPECTED_LENGTH {
             return (StatusCode::UNPROCESSABLE_ENTITY, format!("Not a valid PDU device!")).into_response();
         }
 
@@ -100,8 +96,8 @@ async fn pdu_handler(
 
         let mut addr: u8 = 1;
 
-        for i in (0..2016).step_by(63) {
-            let address = format!("{addr}");
+        for i in (0..EXPECTED_LENGTH).step_by(63) {
+            let address = format!("{}", addr);
             addr += 1;
 
             current_gauge_vec.with_label_values(&[&address]).set(s[i+10].parse::<f64>().unwrap_or(0.0));
@@ -112,7 +108,7 @@ async fn pdu_handler(
 
             for j in 0..16 {
                 let index = i + 15 + (j * 3);
-                let channel = format!("{j}");
+                let channel = format!("{}", j+1);
                 if !s[index].is_empty() {
                     temp_gauge_vec.with_label_values(&[&address, &channel]).set(s[index+1].parse::<f64>().unwrap_or(0.0));
                     hum_gauge_vec.with_label_values(&[&address, &channel]).set(s[index+2].parse::<f64>().unwrap_or(0.0));
