@@ -31,15 +31,53 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 * `target`: IP address or hostname of the PDU
 * `authorization`: Basic auth string in the form `username:password` (will be Base64 encoded internally)
 
-### Example:
+#### Example:
 
 ```
 GET /pdu?target=192.168.1.1&authorization=username:password
 ```
 
-### Example (Manual Test):
+#### Example (Manual Test):
+
 ```
 http://localhost:9117/pdu?target=192.168.1.1&authorization=username:password
+```
+
+### `/api/v1/rack_names`
+
+**Method:** `GET`
+**Description:** Returns a list of rack names extracted from each PDU address block.
+
+**Query Parameters:**
+
+* `target`: IP address or hostname of the PDU
+* `authorization`: Basic auth string in the form `username:password` (will be Base64 encoded internally)
+
+#### Example:
+
+```
+GET /api/v1/rack_names?target=192.168.1.1&authorization=username:password
+```
+#### Example (Manual Test):
+
+```
+http://localhost:9117/api/v1/rack_names?target=192.168.1.1&authorization=username:password
+```
+
+#### Example Response (JSON):
+
+```
+{
+  "rack_names": {
+    "rack_1": "# 1 Rack A",
+    "rack_2": "# 2 Rack B",
+    "rack_3": "# 3 Rack C",
+    ...
+    "rack_30": "# 30 Rack AD",
+    "rack_31": "# 31 Rack AE",
+    "rack_32": "# 32 Rack AF"
+  }
+}
 ```
 
 ## Prometheus Integration
