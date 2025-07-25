@@ -48,6 +48,9 @@ async fn get_pdu_metrics_handler(Query(params): Query<HashMap<String, String>>) 
     let hum_opts = Opts::new("humidity", "Humidity in percent");
     let hum_gauge_vec = GaugeVec::new(hum_opts, &["address", "channel"]).unwrap();
 
+    let sensor_exists_opts = Opts::new("sensor_exists", "Sensor exists (bool)");
+    let sensor_exists_gauge_vec = GaugeVec::new(sensor_exists_opts, &["type"]).unwrap();
+
     let mut addr: u8 = 1;
 
     for i in (0..PDU_RAW_DATA_LENGTH).step_by(63) {
@@ -79,11 +82,19 @@ async fn get_pdu_metrics_handler(Query(params): Query<HashMap<String, String>>) 
 
     if !temp_gauge_vec.collect()[0].metric.is_empty() {
         metric_families.extend(temp_gauge_vec.collect());
+        sensor_exists_gauge_vec.with_label_values(&["temperature"]).set(1.0);
+    } else {
+        sensor_exists_gauge_vec.with_label_values(&["temperature"]).set(0.0);
     }
 
     if !hum_gauge_vec.collect()[0].metric.is_empty() {
         metric_families.extend(hum_gauge_vec.collect());
+        sensor_exists_gauge_vec.with_label_values(&["humidity"]).set(1.0);
+    } else {
+        sensor_exists_gauge_vec.with_label_values(&["humidity"]).set(0.0);
     }
+
+    metric_families.extend(sensor_exists_gauge_vec.collect());
 
     let mut buffer = Vec::new();
     let encoder = TextEncoder::new();
