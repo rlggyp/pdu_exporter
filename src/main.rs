@@ -1,3 +1,8 @@
+use std::alloc::System;
+
+#[global_allocator]
+static A: System = System;
+
 use axum::{
     extract::Query, http::StatusCode, response::IntoResponse, routing::get, Json, Router
 };
@@ -7,6 +12,37 @@ use std::collections::HashMap;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const PDU_RAW_DATA_LENGTH: usize = 2016;
+const METRIC_STEP: usize = 63;
+const TEMP_INDEX_OFFSET: usize = 15;
+
+struct PduMetrics {
+    current: GaugeVec,
+    voltage: GaugeVec,
+    power: GaugeVec,
+    power_factor: GaugeVec,
+    energy: GaugeVec,
+    temperature: GaugeVec,
+    humidity: GaugeVec,
+    sensor_exists: GaugeVec,
+}
+
+impl<'a> IntoIterator for &'a PduMetrics {
+    type Item = (&'a str, &'a GaugeVec);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        vec![
+            ("current", &self.current),
+            ("voltage", &self.voltage),
+            ("power", &self.power),
+            ("power_factor", &self.power_factor),
+            ("energy", &self.energy),
+            ("temperature", &self.temperature),
+            ("humidity", &self.humidity),
+            ("sensor_exists", &self.sensor_exists),
+        ].into_iter()
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -27,74 +63,7 @@ async fn get_pdu_metrics_handler(Query(params): Query<HashMap<String, String>>) 
         Err(e) => return e,
     };
 
-    let current_opts = Opts::new("current", "Current in ampere");
-    let current_gauge_vec = GaugeVec::new(current_opts, &["address"]).unwrap();
-
-    let voltage_opts = Opts::new("voltage", "Voltage in volt");
-    let voltage_gauge_vec = GaugeVec::new(voltage_opts, &["address"]).unwrap();
-
-    let power_opts = Opts::new("power", "Power in watt");
-    let power_gauge_vec = GaugeVec::new(power_opts, &["address"]).unwrap();
-
-    let power_factor_opts = Opts::new("power_factor", "Power factor in ratio (0.0 - 1.0)");
-    let power_factor_gauge_vec = GaugeVec::new(power_factor_opts, &["address"]).unwrap();
-
-    let energy_opts = Opts::new("energy", "Energy in kWh");
-    let energy_gauge_vec = GaugeVec::new(energy_opts, &["address"]).unwrap();
-
-    let temp_opts = Opts::new("temperature", "Temperature in celsius");
-    let temp_gauge_vec = GaugeVec::new(temp_opts, &["address", "channel"]).unwrap();
-
-    let hum_opts = Opts::new("humidity", "Humidity in percent");
-    let hum_gauge_vec = GaugeVec::new(hum_opts, &["address", "channel"]).unwrap();
-
-    let sensor_exists_opts = Opts::new("sensor_exists", "Sensor exists (bool)");
-    let sensor_exists_gauge_vec = GaugeVec::new(sensor_exists_opts, &["type"]).unwrap();
-
-    let mut addr: u8 = 1;
-
-    for i in (0..PDU_RAW_DATA_LENGTH).step_by(63) {
-        let address = format!("{}", addr);
-        addr += 1;
-
-        current_gauge_vec.with_label_values(&[&address]).set(data[i+10].parse::<f64>().unwrap_or(0.0));
-        voltage_gauge_vec.with_label_values(&[&address]).set(data[i+11].parse::<f64>().unwrap_or(0.0));
-        power_gauge_vec.with_label_values(&[&address]).set(data[i+12].parse::<f64>().unwrap_or(0.0));
-        power_factor_gauge_vec.with_label_values(&[&address]).set(data[i+13].parse::<f64>().unwrap_or(0.0));
-        energy_gauge_vec.with_label_values(&[&address]).set(data[i+14].parse::<f64>().unwrap_or(0.0));
-
-        for j in 0..16 {
-            let index = i + 15 + (j * 3);
-            let channel = format!("{}", j+1);
-            if !data[index].is_empty() {
-                temp_gauge_vec.with_label_values(&[&address, &channel]).set(data[index+1].parse::<f64>().unwrap_or(0.0));
-                hum_gauge_vec.with_label_values(&[&address, &channel]).set(data[index+2].parse::<f64>().unwrap_or(0.0));
-            }
-        }
-    }
-
-    let mut metric_families = Vec::new();
-    metric_families.extend(current_gauge_vec.collect());
-    metric_families.extend(voltage_gauge_vec.collect());
-    metric_families.extend(power_gauge_vec.collect());
-    metric_families.extend(power_factor_gauge_vec.collect());
-    metric_families.extend(energy_gauge_vec.collect());
-
-    if !temp_gauge_vec.collect()[0].metric.is_empty() {
-        metric_families.extend(temp_gauge_vec.collect());
-        sensor_exists_gauge_vec.with_label_values(&["temperature"]).set(1.0);
-    } else {
-        sensor_exists_gauge_vec.with_label_values(&["temperature"]).set(0.0);
-    }
-
-    if !hum_gauge_vec.collect()[0].metric.is_empty() {
-        metric_families.extend(hum_gauge_vec.collect());
-        sensor_exists_gauge_vec.with_label_values(&["humidity"]).set(1.0);
-    } else {
-        sensor_exists_gauge_vec.with_label_values(&["humidity"]).set(0.0);
-    }
-
-    metric_families.extend(sensor_exists_gauge_vec.collect());
+    let metric_families = process_pdu_metrics(data);
 
     let mut buffer = Vec::new();
     let encoder = TextEncoder::new();
@@ -112,7 +81,7 @@ async fn get_rack_names_handler(Query(params): Query<HashMap<String, String>>) -
     let mut rack_names: HashMap<String, String> = HashMap::new();
 
     let mut address = 1;
-    for i in (0..PDU_RAW_DATA_LENGTH).step_by(63) {
+    for i in (0..PDU_RAW_DATA_LENGTH).step_by(METRIC_STEP) {
         rack_names.insert(format!("rack_{}", address), format!("# {} {}", address, data[i+1]));
         address += 1;
     }
@@ -120,9 +89,7 @@ async fn get_rack_names_handler(Query(params): Query<HashMap<String, String>>) -
     (StatusCode::OK, Json(HashMap::from([("rack_names", rack_names)]))).into_response()
 }
 
-async fn get_pdu_data(
-    params: HashMap<String, String>
-) -> Result<Vec<String>, axum::response::Response> {
+async fn get_pdu_data(params: HashMap<String, String>) -> Result<Vec<String>, axum::response::Response> {
     let target = match params.get("target") {
         Some(value) => value,
         None => return Err((StatusCode::BAD_REQUEST, "Missing `target` parameter").into_response()),
@@ -177,4 +144,67 @@ async fn get_pdu_data(
     } else {
         Err((StatusCode::BAD_REQUEST, format!("No body found in response")).into_response())
     }
+}
+
+fn build_gauge_vec(name: &str, help: &str, labels: &[&str]) -> GaugeVec {
+    GaugeVec::new(Opts::new(name, help), labels).expect(&format!("failed to build gauge_vec {}", name))
+}
+
+fn parse_or_zero(s: &str) -> f64 {
+    s.parse::<f64>().unwrap_or(0.0)
+}
+
+fn build_pdu_metrics() -> PduMetrics {
+    PduMetrics {
+        current: build_gauge_vec("current", "Current in ampere", &["address"]),
+        voltage: build_gauge_vec("voltage", "Voltage in volt", &["address"]),
+        power: build_gauge_vec("power", "Power in watt", &["address"]),
+        power_factor: build_gauge_vec("power_factor", "Power factor in ratio (0.0 - 1.0)", &["address"]),
+        energy: build_gauge_vec("energy", "Energy in kWh", &["address"]),
+        temperature: build_gauge_vec("temperature", "Temperature in celsius", &["address", "channel"]),
+        humidity: build_gauge_vec("humidity", "Humidity in percent", &["address", "channel"]),
+        sensor_exists: build_gauge_vec("sensor_exists", "Sensor exists (bool)", &["type"]),
+    }
+}
+
+fn process_pdu_metrics(data: Vec<String>) -> Vec<prometheus::proto::MetricFamily> {
+    let metrics = build_pdu_metrics();
+
+    let mut addr = 1;
+    for i in (0..PDU_RAW_DATA_LENGTH).step_by(METRIC_STEP) {
+        let address = format!("{}", addr);
+        addr += 1;
+
+        metrics.current.with_label_values(&[&address]).set(parse_or_zero(&data[i+10]));
+        metrics.voltage.with_label_values(&[&address]).set(parse_or_zero(&data[i+11]));
+        metrics.power.with_label_values(&[&address]).set(parse_or_zero(&data[i+12]));
+        metrics.power_factor.with_label_values(&[&address]).set(parse_or_zero(&data[i+13]));
+        metrics.energy.with_label_values(&[&address]).set(parse_or_zero(&data[i+14]));
+
+        for j in 0..16 {
+            let index = i + TEMP_INDEX_OFFSET + (j * 3);
+            let channel = format!("{}", j+1);
+            if !data[index].is_empty() {
+                metrics.temperature.with_label_values(&[&address, &channel]).set(parse_or_zero(&data[index+1]));
+                metrics.humidity.with_label_values(&[&address, &channel]).set(parse_or_zero(&data[index+2]));
+            }
+        }
+    }
+
+    let mut metric_families = Vec::new();
+
+    for (name, metric) in &metrics {
+        if name == "temperature" || name == "humidity" {
+            if !metric.collect()[0].metric.is_empty() {
+                metric_families.extend(metric.collect());
+                metrics.sensor_exists.with_label_values(&[name]).set(1.0);
+            } else {
+                metrics.sensor_exists.with_label_values(&[name]).set(0.0);
+            }
+        } else {
+            metric_families.extend(metric.collect());
+        }
+    }
+
+    metric_families
 }
