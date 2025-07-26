@@ -6,20 +6,21 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 
 * Connects directly to the PDU via raw TCP (port 80)
 * Sends a manual HTTP GET request with basic authentication
-* Exposes metrics such as current, voltage, power, energy, temperature, and humidity
+* Exposes metrics such as current, voltage, power, energy, temperature, humidity, and sensor existence
 * Dockerized for easy deployment
 
 ## Exported Metrics
 
-| Metric Name    | Description               | Labels               |
-| -------------- | ------------------------- | -------------------- |
-| `current`      | Current in Ampere         | `address`            |
-| `voltage`      | Voltage in Volt           | `address`            |
-| `power`        | Power in Watt             | `address`            |
-| `power_factor` | Power factor (0.0 to 1.0) | `address`            |
-| `energy`       | Energy in kilowatt-hours  | `address`            |
-| `temperature`  | Temperature in Celsius    | `address`, `channel` |
-| `humidity`     | Humidity in percent       | `address`, `channel` |
+| Metric Name    | Description                      | Labels               |
+| -------------- | -------------------------------- | -------------------- |
+| `current`      | Current in Ampere                | `address`            |
+| `voltage`      | Voltage in Volt                  | `address`            |
+| `power`        | Power in Watt                    | `address`            |
+| `power_factor` | Power factor (0.0 to 1.0)        | `address`            |
+| `energy`       | Energy in kilowatt-hours         | `address`            |
+| `temperature`  | Temperature in Celsius           | `address`, `channel` |
+| `humidity`     | Humidity in percent              | `address`, `channel` |
+| `sensor_exists`| Sensor existence (1.0 or 0.0)    | `type`               |
 
 ## API Endpoint
 
@@ -118,7 +119,7 @@ docker build -t pdu_exporter:latest .
 Then, run the container:
 
 ```bash
-docker run -d \
+docker run --init -d \
   --name pdu_exporter \
   -p 9117:9117 \
   pdu_exporter:latest
@@ -137,7 +138,7 @@ docker pull rlggyp/pdu_exporter:latest
 Then run the container:
 
 ```bash
-docker run -d \
+docker run --init -d \
   --name pdu_exporter \
   -p 9117:9117 \
   rlggyp/pdu_exporter:latest
