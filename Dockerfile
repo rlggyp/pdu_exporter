@@ -1,11 +1,13 @@
-FROM docker.io/rust:bookworm as rust-builder
-COPY ./Cargo* /app/
-COPY ./src /app/src
+FROM rust:bookworm as builder
+
 WORKDIR /app
-RUN cargo install --path . --root . --profile release \
-  && strip /app/bin/pdu_exporter
+COPY ./Cargo.toml ./Cargo.lock ./
+COPY ./src ./src
+RUN cargo build --release
 
-FROM docker.io/debian:bookworm-slim
-ENTRYPOINT ["/bin/pdu_exporter"]
+FROM gcr.io/distroless/cc
+COPY --from=builder /app/target/release/pdu_exporter /pdu_exporter
 
-COPY --from=rust-builder /app/bin/pdu_exporter /bin/pdu_exporter
+EXPOSE 9117
+USER nonroot
+ENTRYPOINT ["/pdu_exporter"]
