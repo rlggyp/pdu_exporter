@@ -1,3 +1,9 @@
+[profile.release]
+lto = true
+strip = true
+panic = "abort"
+opt-level = "z"
+
 [package]
 name = "pdu_exporter"
 version = "0.1.0"
@@ -5,6 +11,5 @@ edition = "2024"
 
 [dependencies]
 axum = { version = "0.8.4", features = ["tokio"] }
-base64 = "0.22.1"
 prometheus = "0.14.0"
 tokio = { version = "1.46.1", features = ["full"] }
