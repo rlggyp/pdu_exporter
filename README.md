@@ -5,7 +5,7 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 ## Features
 
 * Connects directly to the PDU via raw TCP (port 80)
-* Sends a manual HTTP GET request with basic authentication
+* Sends a manual HTTP GET request
 * Exposes metrics such as current, voltage, power, energy, temperature, humidity, and sensor existence
 * Dockerized for easy deployment
 
@@ -22,7 +22,7 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 | `humidity`     | Humidity in percent              | `address`, `channel` |
 | `sensor_exists`| Sensor existence (1.0 or 0.0)    | `type`               |
 
-## API Endpoint
+## API Endpoints
 
 ### `/pdu`
 
@@ -30,20 +30,12 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 **Query Parameters:**
 
 * `target`: IP address or hostname of the PDU
-* `authorization`: Basic auth string in the form `username:password` (will be Base64 encoded internally)
 
 #### Example:
 
 ```
-GET /pdu?target=192.168.1.1&authorization=username:password
+GET /pdu?target=192.168.1.1
 ```
-
-#### Example (Manual Test):
-
-```
-http://localhost:9117/pdu?target=192.168.1.1&authorization=username:password
-```
-
 ### `/api/v1/rack_names`
 
 **Method:** `GET`
@@ -52,18 +44,12 @@ http://localhost:9117/pdu?target=192.168.1.1&authorization=username:password
 **Query Parameters:**
 
 * `target`: IP address or hostname of the PDU
-* `authorization`: Basic auth string in the form `username:password` (will be Base64 encoded internally)
 
 #### Example:
 
 ```
-GET /api/v1/rack_names?target=192.168.1.1&authorization=username:password
-```
-#### Example (Manual Test):
-
-```
-http://localhost:9117/api/v1/rack_names?target=192.168.1.1&authorization=username:password
-```
+GET /api/v1/rack_names?target=192.168.1.1
+````
 
 #### Example Response (JSON):
 
@@ -72,14 +58,11 @@ http://localhost:9117/api/v1/rack_names?target=192.168.1.1&authorization=usernam
   "rack_names": {
     "rack_1": "# 1 Rack A",
     "rack_2": "# 2 Rack B",
-    "rack_3": "# 3 Rack C",
     ...
-    "rack_30": "# 30 Rack AD",
-    "rack_31": "# 31 Rack AE",
     "rack_32": "# 32 Rack AF"
   }
 }
-```
+````
 
 ## Prometheus Integration
 
@@ -91,12 +74,8 @@ scrape_configs:
     metrics_path: /pdu
     static_configs:
       - targets:
-        - 192.168.0.1
-        labels:
-          authorization: ["username:password"]
+        - 192.168.1.1
     relabel_configs:
-      - source_labels: [authorization]
-        target_label: __param_authorization
       - source_labels: [__address__]
         target_label: __param_target
       - source_labels: [__param_target]
@@ -104,13 +83,12 @@ scrape_configs:
       - target_label: __address__
         replacement: 127.0.0.1:9117  # Address of the PDU Exporter container or host
 ```
+
 ## Docker Usage
 
 You have two options for running the PDU Exporter using Docker:
 
 ### Option 1: Build the Docker Image Locally
-
-From the root directory of the project (where the `Dockerfile` is located), run the following command to build the image:
 
 ```bash
 docker build -t pdu_exporter:latest .
@@ -125,17 +103,11 @@ docker run --init -d \
   pdu_exporter:latest
 ```
 
-This will expose the exporter at `http://localhost:9117/pdu`.
-
 ### Option 2: Use Prebuilt Image from Docker Hub
-
-You can pull the prebuilt image directly from Docker Hub:
 
 ```bash
 docker pull rlggyp/pdu_exporter:latest
 ```
-
-Then run the container:
 
 ```bash
 docker run --init -d \
@@ -144,11 +116,9 @@ docker run --init -d \
   rlggyp/pdu_exporter:latest
 ```
 
-This achieves the same result and avoids the need to build the image manually.
-
 ## Error Handling
 
-* Returns **400 Bad Request** if `target` or `authorization` is missing
+* Returns **400 Bad Request** if `target` is missing
 * Returns **404 Not Found** if TCP connection to the PDU fails
 * Returns **422 Unprocessable Entity** if response structure is invalid
 * Returns **500 Internal Server Error** for I/O or parsing errors
@@ -160,4 +130,5 @@ This achieves the same result and avoids the need to build the image manually.
 * Only supports plain TCP and HTTP (no TLS, no SNMP)
 
 ## License
+
 This project is licensed under the [MIT License](LICENSE). See the LICENSE file for details.
