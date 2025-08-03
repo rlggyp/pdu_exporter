@@ -2,7 +2,7 @@
 lto = true
 strip = true
 panic = "abort"
-opt-level = "z"
+opt-level = 3
 
 [package]
 name = "pdu_exporter"
@@ -11,5 +11,4 @@ edition = "2024"
 
 [dependencies]
 axum = { version = "0.8.4", features = ["tokio"] }
-prometheus = "0.14.0"
 tokio = { version = "1.46.1", features = ["full"] }

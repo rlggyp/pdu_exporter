@@ -1,22 +1,15 @@
 use axum::{extract::Query, http::StatusCode, response::IntoResponse, Json};
 use std::collections::HashMap;
-use prometheus::{Encoder, TextEncoder};
 
 use super::{METRIC_STEP, RAW_DATA_LENGTH, metrics::process_metrics, client::fetch_raw_data};
 
 pub async fn pdu_metrics(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
-    let data = match fetch_raw_data(params).await {
-        Ok(d) => d,
-        Err(e) => return e,
+    match fetch_raw_data(params).await {
+        Ok(data) => {
+            (StatusCode::OK, process_metrics(data)).into_response()
+        },
+        Err(error) => error,
     };
-
-    let metric_families = process_metrics(data);
-
-    let mut buffer = Vec::new();
-    let encoder = TextEncoder::new();
-    encoder.encode(&metric_families, &mut buffer).unwrap();
-
-    (StatusCode::OK, String::from_utf8(buffer).unwrap()).into_response()
 }
 
 pub async fn rack_names(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
