@@ -1,20 +1,22 @@
+use super::{METRIC_STEP, RAW_DATA_LENGTH};
+
 const TEMP_INDEX_OFFSET: usize = 15;
 
 pub struct GaugeVec {
     name: String,
     help: String,
     labels: Vec<String>,
-    output: String,
+    samples: Vec<String>,
 }
 
 impl GaugeVec {
     fn new(name: &str, help: &str, labels: &[&str]) -> Self {
-        let help_str = format!("# HELP {name} {help}\nTYPE {name} gauge\n");
+        let help_str = format!("# HELP {name} {help}\n# TYPE {name} gauge\n");
         Self {
             name: name.to_string(),
             help: help_str,
             labels: labels.into_iter().map(|s| s.to_string()).collect(),
-            output: String::new(),
+            samples: Vec::new(),
         }
     }
 
@@ -22,41 +24,47 @@ impl GaugeVec {
         let label_str = self.labels.iter()
             .zip(labels.iter())
             .map(|(k, v)| format!(r#"{}="{}""#, k, v))
-            .collect::<Vec<_>>()
+            .collect::<Vec<String>>()
             .join(",");
 
         GaugeSample {
             name: &self.name,
             labels: label_str,
-            output: &mut self.output,
+            samples: &mut self.samples,
         }
     }
 
     fn render(&self) -> String {
-        format!("{}{}", self.help, self.output)
+        let mut samples = self.samples.clone();
+        samples.sort();
+        format!("{}{}", self.help, samples.join("\n"))
     }
 }
 
 pub struct GaugeSample<'a> {
     name: &'a str,
     labels: String,
-    output: &'a mut String,
+    samples: &'a mut Vec<String>,
 }
 
 impl<'a> GaugeSample<'a> {
     pub fn set(&mut self, value: &str) {
         let formatted = format_number(value);
-        self.output
-            .push_str(&format!("{}{{{}}} {}", self.name, self.labels, formatted));
+        let sample = format!("{}{{{}}} {}", self.name, self.labels, formatted);
+        self.samples.push(sample);
     }
 }
 
 fn format_number(number: &str) -> String {
     if let Ok(num) = number.parse::<f64>() {
+        if !num.is_finite() {
+            return "0".to_string()
+        }
+
         if num.fract() == 0.0 {
-            (num as i32).to_string()
+            (num as i64).to_string()
         } else {
-            number.to_string()
+            num.to_string()
         }
     } else {
         "0".to_string()
@@ -74,7 +82,23 @@ struct PduMetrics {
     sensor_exists: GaugeVec,
 }
 
-use super::{METRIC_STEP, RAW_DATA_LENGTH};
+impl PduMetrics {
+    fn export_metrics(&self) -> String {
+       let mut metrics = vec![
+           (&self.current.name, self.current.render()),
+           (&self.voltage.name, self.voltage.render()),
+           (&self.power.name, self.power.render()),
+           (&self.power_factor.name, self.power_factor.render()),
+           (&self.energy.name, self.energy.render()),
+           (&self.temperature.name, self.temperature.render()),
+           (&self.humidity.name, self.humidity.render()),
+           (&self.sensor_exists.name, self.sensor_exists.render()),
+        ];
+
+       metrics.sort_by(|(a, _), (b, _)| a.cmp(&b));
+       metrics.into_iter().map(|(_, m)| m).collect::<Vec<String>>().join("\n")
+    }
+}
 
 pub fn process_metrics(data: Vec<String>) -> String {
     let mut metrics = build_metrics();
@@ -100,22 +124,12 @@ pub fn process_metrics(data: Vec<String>) -> String {
         }
     }
 
-    let has_temperature = (!metrics.temperature.output.is_empty() as u8).to_string();
-    let has_humidity = (!metrics.humidity.output.is_empty()).to_string();
+    let has_temperature = (!metrics.temperature.samples.is_empty() as u8).to_string();
+    let has_humidity = (!metrics.humidity.samples.is_empty()).to_string();
 
     metrics.sensor_exists.with_label_values(&["temperature"]).set(&has_temperature);
     metrics.sensor_exists.with_label_values(&["humidity"]).set(&has_humidity);
-
-    vec![
-        metrics.current.render(),
-        metrics.voltage.render(),
-        metrics.power.render(),
-        metrics.power_factor.render(),
-        metrics.energy.render(),
-        metrics.temperature.render(),
-        metrics.humidity.render(),
-        metrics.sensor_exists.render(),
-    ].join("")
+    metrics.export_metrics()
 }
 
 fn build_metrics() -> PduMetrics {

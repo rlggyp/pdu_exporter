@@ -1,15 +1,16 @@
-use axum::{extract::Query, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::Query, http::{header, StatusCode}, response::IntoResponse, Json};
 use std::collections::HashMap;
 
 use super::{METRIC_STEP, RAW_DATA_LENGTH, metrics::process_metrics, client::fetch_raw_data};
 
 pub async fn pdu_metrics(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
     match fetch_raw_data(params).await {
-        Ok(data) => {
-            (StatusCode::OK, process_metrics(data)).into_response()
+        Ok(data) =>  {
+            let body = process_metrics(data);
+            (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], body).into_response()
         },
         Err(error) => error,
-    };
+    }
 }
 
 pub async fn rack_names(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
