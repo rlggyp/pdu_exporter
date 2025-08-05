@@ -95,7 +95,7 @@ impl PduMetrics {
        metrics.sort_by(|a, b| a.name.cmp(&b.name));
        metrics.iter_mut()
            .filter_map(|m| {
-               if !m.labels.is_empty() {
+               if !m.samples.is_empty() {
                    Some(m.render())
                } else {
                    None
@@ -106,7 +106,7 @@ impl PduMetrics {
     }
 }
 
-pub fn process_metrics(data: Vec<String>) -> String {
+pub fn process_metrics(data: &Vec<String>) -> String {
     let mut metrics = build_metrics();
 
     let mut addr = 1;
