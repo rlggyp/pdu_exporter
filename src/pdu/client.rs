@@ -1,10 +1,10 @@
-use axum::{http::StatusCode, response::IntoResponse};
+use axum::{http::StatusCode, response::{IntoResponse, Response}};
 use std::collections::HashMap;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::RAW_DATA_LENGTH;
 
-pub async fn fetch_raw_data(params: HashMap<String, String>) -> Result<Vec<String>, axum::response::Response> {
+pub async fn fetch_raw_data(params: HashMap<String, String>) -> Result<Vec<String>, Response> {
     let target = match params.get("target") {
         Some(value) => value,
         None => return Err((StatusCode::BAD_REQUEST, "Missing `target` parameter").into_response()),

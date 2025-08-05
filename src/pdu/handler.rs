@@ -5,7 +5,7 @@ use super::{METRIC_STEP, RAW_DATA_LENGTH, metrics::process_metrics, client::fetc
 
 pub async fn pdu_metrics(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
     match fetch_raw_data(params).await {
-        Ok(d) => (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(d)).into_response(),
+        Ok(d) => (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(&d)).into_response(),
         Err(e) => e,
     }
 }
