@@ -1,8 +1,6 @@
 use super::{METRIC_STEP, RAW_DATA_LENGTH};
 
-const TEMP_INDEX_OFFSET: usize = 15;
-
-pub struct GaugeVec {
+struct GaugeVec {
     name: String,
     help: String,
     labels: Vec<String>,
@@ -34,21 +32,20 @@ impl GaugeVec {
         }
     }
 
-    fn render(&self) -> String {
-        let mut samples = self.samples.clone();
-        samples.sort();
-        format!("{}{}", self.help, samples.join("\n"))
+    fn render(&mut self) -> String {
+        self.samples.sort();
+        format!("{}{}", self.help, self.samples.join("\n"))
     }
 }
 
-pub struct GaugeSample<'a> {
+struct GaugeSample<'a> {
     name: &'a str,
     labels: String,
     samples: &'a mut Vec<String>,
 }
 
 impl<'a> GaugeSample<'a> {
-    pub fn set(&mut self, value: &str) {
+    fn set(&mut self, value: &str) {
         let formatted = format_number(value);
         let sample = format!("{}{{{}}} {}", self.name, self.labels, formatted);
         self.samples.push(sample);
@@ -83,20 +80,29 @@ struct PduMetrics {
 }
 
 impl PduMetrics {
-    fn export_metrics(&self) -> String {
+    fn export_metrics(&mut self) -> String {
        let mut metrics = vec![
-           (&self.current.name, self.current.render()),
-           (&self.voltage.name, self.voltage.render()),
-           (&self.power.name, self.power.render()),
-           (&self.power_factor.name, self.power_factor.render()),
-           (&self.energy.name, self.energy.render()),
-           (&self.temperature.name, self.temperature.render()),
-           (&self.humidity.name, self.humidity.render()),
-           (&self.sensor_exists.name, self.sensor_exists.render()),
+           &mut self.current,
+           &mut self.voltage,
+           &mut self.power,
+           &mut self.power_factor,
+           &mut self.energy,
+           &mut self.temperature,
+           &mut self.humidity,
+           &mut self.sensor_exists,
         ];
 
-       metrics.sort_by(|(a, _), (b, _)| a.cmp(&b));
-       metrics.into_iter().map(|(_, m)| m).collect::<Vec<String>>().join("\n")
+       metrics.sort_by(|a, b| a.name.cmp(&b.name));
+       metrics.iter_mut()
+           .filter_map(|m| {
+               if !m.labels.is_empty() {
+                   Some(m.render())
+               } else {
+                   None
+               }
+           })
+           .collect::<Vec<String>>()
+           .join("\n")
     }
 }
 
@@ -114,6 +120,8 @@ pub fn process_metrics(data: Vec<String>) -> String {
         metrics.power_factor.with_label_values(&[&address]).set(&data[i+13]);
         metrics.energy.with_label_values(&[&address]).set(&data[i+14]);
 
+        const TEMP_INDEX_OFFSET: usize = 15;
+
         for j in 0..16 {
             let index = i + TEMP_INDEX_OFFSET + (j * 3);
             let channel = (j + 1).to_string();
@@ -125,7 +133,7 @@ pub fn process_metrics(data: Vec<String>) -> String {
     }
 
     let has_temperature = (!metrics.temperature.samples.is_empty() as u8).to_string();
-    let has_humidity = (!metrics.humidity.samples.is_empty()).to_string();
+    let has_humidity = (!metrics.humidity.samples.is_empty() as u8).to_string();
 
     metrics.sensor_exists.with_label_values(&["temperature"]).set(&has_temperature);
     metrics.sensor_exists.with_label_values(&["humidity"]).set(&has_humidity);
