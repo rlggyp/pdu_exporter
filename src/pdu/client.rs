@@ -14,7 +14,7 @@ pub async fn fetch_raw_data(params: HashMap<String, String>) -> Result<Vec<Strin
 
     let mut stream = match tokio::net::TcpStream::connect(endpoint).await {
         Ok(s) => s,
-        Err(_) => return Err((StatusCode::NOT_FOUND, "Failed to connect to target").into_response()),
+        Err(e) => return Err((StatusCode::NOT_FOUND, format!("Failed to connect to target: {}", e)).into_response()),
     };
 
     let request = format!(
@@ -22,13 +22,13 @@ pub async fn fetch_raw_data(params: HashMap<String, String>) -> Result<Vec<Strin
         target
     );
 
-    if let Err(_) = stream.write_all(request.as_bytes()).await {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write request").into_response());
+    if let Err(e) = stream.write_all(request.as_bytes()).await {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write request: {}", e)).into_response());
     }
 
     let mut response: Vec<u8> = Vec::new();
-    if let Err(_) = stream.read_to_end(&mut response).await {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to read response").into_response());
+    if let Err(e) = stream.read_to_end(&mut response).await {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read response: {}", e)).into_response());
     }
 
     let response_text = String::from_utf8_lossy(&response);
@@ -42,10 +42,10 @@ pub async fn fetch_raw_data(params: HashMap<String, String>) -> Result<Vec<Strin
     let data: Vec<String> = body.split("?")
         .map(|s| s.to_string())
         .collect();
-    
+
     if data.len() != RAW_DATA_LENGTH {
         return Err((StatusCode::UNPROCESSABLE_ENTITY, format!("Not a valid PDU device!")).into_response());
     }
-    
+
     Ok(data)
 }
