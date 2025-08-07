@@ -1,10 +1,11 @@
 mod auth;
+mod config;
 mod pdu;
 
 use auth::basic_auth::{basic_auth, BasicAuth};
 use axum::{routing::get, Router};
 use std::sync::Arc;
-use base64::{engine::general_purpose, Engine};
+use config::parser::PduExporterConfig;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -12,13 +13,10 @@ pub struct AppState {
 }
 
 impl AppState {
-    fn new() -> Arc::<Self> {
+    fn new(config: PduExporterConfig) -> Arc::<Self> {
         Arc::new(AppState {
-            basic_auth: auth::basic_auth::BasicAuth {
-                base64_userpass: vec!["user:pass", "hello:world"]
-                    .into_iter()
-                    .map(|x| general_purpose::STANDARD.encode(x))
-                    .collect::<Vec<String>>(),
+            basic_auth: BasicAuth {
+                credentials: config.basic_auth_users.credentials,
             }
         })
     }
@@ -26,7 +24,12 @@ impl AppState {
 
 #[tokio::main]
 async fn main() {
-    let app_state = AppState::new();
+    let pdu_exporter_config = match config::parser::load_config() {
+        Ok(config) => config,
+        Err(e) => panic!("{}", e),
+    };
+
+    let app_state = AppState::new(pdu_exporter_config);
 
     let app = Router::new()
         .route("/pdu", get(pdu::handler::pdu_metrics))
