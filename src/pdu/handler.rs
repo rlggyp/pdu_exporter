@@ -1,17 +1,26 @@
-use axum::{extract::Query, http::{header, StatusCode}, response::IntoResponse, Json};
+use axum::{extract::{Query, State}, http::{header, StatusCode}, response::IntoResponse, Json};
 use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::AppState;
 
 use super::{METRIC_STEP, RAW_DATA_LENGTH, metrics::process_metrics, client::fetch_raw_data};
 
-pub async fn pdu_metrics(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
-    match fetch_raw_data(params).await {
+pub async fn pdu_metrics(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<HashMap<String, String>>
+) -> impl IntoResponse {
+    match fetch_raw_data(params, state.scrape_timeout).await {
         Ok(d) => (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(&d)).into_response(),
         Err(e) => e,
     }
 }
 
-pub async fn rack_names(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
-    let data = match fetch_raw_data(params).await {
+pub async fn rack_names(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<HashMap<String, String>>
+) -> impl IntoResponse {
+    let data = match fetch_raw_data(params, state.scrape_timeout).await {
         Ok(d) => d,
         Err(e) => return e,
     };

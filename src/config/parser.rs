@@ -2,28 +2,13 @@ use std::env;
 use std::collections::HashMap;
 
 #[derive(Debug)]
-pub struct PduExporterConfig {
-    pub scrape_configs: ScrapeConfigs,
-    pub basic_auth_users: BasicAuthUsers,
-}
-
-impl PduExporterConfig {
-    fn new() -> Self {
-        Self {
-            scrape_configs: ScrapeConfigs::new(),
-            basic_auth_users: BasicAuthUsers::new(),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct ScrapeConfigs {
-    pub scrape_timeout: Option<u64>,
+    pub scrape_timeout: u64,
 }
 
 impl ScrapeConfigs {
     fn new() -> Self {
-        Self { scrape_timeout: None }
+        Self { scrape_timeout: 0 }
     }
 }
 
@@ -38,83 +23,89 @@ impl BasicAuthUsers {
     }
 }
 
-pub fn load_config() -> Result<PduExporterConfig, String> {
-    let args = parse_args();
-    let mut config = Ok(PduExporterConfig::new());
+#[derive(Debug)]
+pub struct PduExporterConfig {
+    pub scrape_configs: ScrapeConfigs,
+    pub basic_auth_users: BasicAuthUsers,
+}
 
-    for (k, v) in args.iter() {
-        match k.as_str() {
-            "--config.file" => config = parse_yaml(v),
-            _ => continue,
-        }
+impl PduExporterConfig {
+    fn load_from_file(filepath: &str) -> Result<Self, String> {
+        let content = std::fs::read_to_string(filepath).map_err(|e| e.to_string())?;
+        Self::parse_yaml(&content)
     }
 
-    config
+    fn parse_yaml(yaml_content: &str) -> Result<Self, String> {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(yaml_content).map_err(|e| e.to_string())?;
+
+        let mut config = PduExporterConfig {
+            scrape_configs: ScrapeConfigs::new(),
+            basic_auth_users: BasicAuthUsers::new(),
+        };
+
+        if let Some(scrape_configs) = yaml.get("scrape_configs") {
+            if let Some(scrape_timeout) = scrape_configs.get("scrape_timeout") {
+                if let Some(timeout_str) = scrape_timeout.as_str() {
+                    config.scrape_configs.scrape_timeout = Self::parse_seconds(timeout_str)
+                        .ok_or_else(|| format!("Invalid scrape_timeout value: {}", timeout_str))?;
+                } else {
+                    return Err("scrape_timeout must be a string".to_string());
+                }
+            } else {
+                return Err("scrape_timeout is required in scrape_configs".to_string());
+            }
+        } else {
+            return Err("scrape_configs section is required".to_string());
+        }
+
+        if let Some(basic_auth_users) = yaml.get("basic_auth_users") {
+            let mut credentials: HashMap<String, String> = HashMap::new();
+
+            if let Some(basic_auth_users) = basic_auth_users.as_mapping() {
+                for (key, value) in basic_auth_users {
+                    credentials.insert(
+                        key.as_str().unwrap().to_string(),
+                        value.as_str().unwrap().to_string(),
+                    );
+                }
+            }
+
+            if !credentials.is_empty() {
+                config.basic_auth_users = BasicAuthUsers { credentials };
+            }
+        }
+
+        Ok(config)
+    }
+
+    fn parse_seconds(s: &str) -> Option<u64> {
+        if s.ends_with('s') {
+            s.trim_end_matches('s').parse::<u64>().ok()
+        } else {
+            None
+        }
+    }
+}
+
+pub fn load_config() -> Result<PduExporterConfig, String> {
+    let args = parse_args();
+    let config_file = args.get("--config.file").ok_or_else(|| {
+        "Missing required argument: --config.file".to_string()
+    })?;
+
+    PduExporterConfig::load_from_file(config_file)
 }
 
 fn parse_args() -> HashMap<String, String> {
     let args: Vec<String> = env::args().collect();
     let mut valid_args: HashMap<String, String> = HashMap::new();
 
-    for arg in &args[1..] {
-        if arg.starts_with("--config.file=") {
-            let arg_split: Vec<&str> = arg.split("=").collect();
-            valid_args.insert(arg_split[0].to_string(), arg_split[1].to_string());
+    for arg in args.iter().skip(1) {
+        if let Some((key, value)) = arg.split_once('=') {
+            valid_args.insert(key.to_string(), value.to_string());
         }
     }
 
     valid_args
 }
 
-fn parse_yaml(filepath: &str) -> Result<PduExporterConfig, String> {
-    let reader = match std::fs::File::open(filepath) {
-        Ok(f) => std::io::BufReader::new(f),
-        Err(e) => return Err(e.to_string()),
-    };
-
-    let yaml: serde_yaml::Value = match serde_yaml::from_reader(reader) {
-        Ok(v) => v,
-        Err(e) => return Err(e.to_string()),
-    };
-
-    let mut config = PduExporterConfig::new();
-
-    if let Some(scrape_configs) = yaml.get("scrape_configs") {
-        if let Some(scrape_timeout) = scrape_configs.get("scrape_timeout") {
-            let scrape_timeout = scrape_timeout.as_str().unwrap();
-            config.scrape_configs.scrape_timeout = parse_seconds(scrape_timeout);
-        }
-    }
-
-    if let Some(basic_auth_users) = yaml.get("basic_auth_users") {
-        let mut credentials: HashMap<String, String> = HashMap::new();
-        for auth in basic_auth_users.as_mapping().unwrap() {
-            credentials.insert(
-                auth.0.as_str().unwrap().to_string(),
-                auth.1.as_str().unwrap().to_string()
-            );
-        }
-
-        if !credentials.is_empty() {
-            config.basic_auth_users = BasicAuthUsers{ credentials };
-        }
-    }
-
-
-    Ok(config)
-}
-
-fn parse_seconds(s: &str) -> Option<u64> {
-    if let Some(stripped) = s.strip_suffix('s') {
-        match stripped.parse::<u64>() {
-            Ok(v) => Some(v),
-            Err(e) => {
-                println!("Expected format like '{{number}}s', but failed to parse '{}': {}", s, e);
-                None
-            }
-        }
-    } else {
-        println!("Expected string with 's' suffix, got '{}'", s);
-        None
-    }
-}

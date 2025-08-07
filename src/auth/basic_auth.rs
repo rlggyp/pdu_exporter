@@ -3,7 +3,7 @@ use crate::AppState;
 use std::sync::Arc;
 use std::collections::HashMap;
 use axum::{extract::{Request, State}, http::StatusCode, middleware::Next, response::Response};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{engine::general_purpose, Engine};
 
 #[derive(Clone)]
 pub struct BasicAuth {
@@ -13,7 +13,7 @@ pub struct BasicAuth {
 impl BasicAuth {
     fn verify(&self, auth_header: &str) -> bool {
         if auth_header.starts_with("Basic") && auth_header.len() > 6 {
-            let auth = match STANDARD.decode(&auth_header[6..]) {
+            let auth = match general_purpose::STANDARD.decode(&auth_header[6..]) {
                 Ok(bytes) =>  match String::from_utf8(bytes) {
                     Ok(s) => s,
                     Err(_) => return false,
@@ -21,20 +21,15 @@ impl BasicAuth {
                 Err(_) => return false,
             };
 
-            let auth_split: Vec<&str> = auth.split(":").collect();
-            let user = auth_split[0];
-            let pass = auth_split[1];
+            let user_pass: Vec<&str> = auth.split(":").collect();
+            let (user, pass) = (user_pass[0], user_pass[1]);
 
             if let Some(hash) = self.credentials.get(user) {
-                if let Ok(result) = bcrypt::verify(pass, &hash) {
-                    return result
-                }
+                return bcrypt::verify(pass, &hash).unwrap_or(false);
             }
-
-            false
-        } else {
-            false
         }
+
+        false
     }
 }
 

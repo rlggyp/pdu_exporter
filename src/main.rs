@@ -5,36 +5,30 @@ mod pdu;
 use auth::basic_auth::{basic_auth, BasicAuth};
 use axum::{routing::get, Router};
 use std::sync::Arc;
-use config::parser::PduExporterConfig;
 
 #[derive(Clone)]
 pub struct AppState {
     basic_auth: BasicAuth,
-}
-
-impl AppState {
-    fn new(config: PduExporterConfig) -> Arc::<Self> {
-        Arc::new(AppState {
-            basic_auth: BasicAuth {
-                credentials: config.basic_auth_users.credentials,
-            }
-        })
-    }
+    scrape_timeout: u64,
 }
 
 #[tokio::main]
 async fn main() {
-    let pdu_exporter_config = match config::parser::load_config() {
-        Ok(config) => config,
-        Err(e) => panic!("{}", e),
-    };
+    let config = config::parser::load_config().unwrap_or_else(|e| {
+        eprintln!("Error loading config: {}", e);
+        std::process::exit(1);
+    });
 
-    let app_state = AppState::new(pdu_exporter_config);
+    let app_state = Arc::new(AppState {
+        basic_auth: BasicAuth { credentials: config.basic_auth_users.credentials },
+        scrape_timeout: config.scrape_configs.scrape_timeout,
+    });
 
     let app = Router::new()
         .route("/pdu", get(pdu::handler::pdu_metrics))
         .route("/api/v1/rack_names", get(pdu::handler::rack_names))
-        .route_layer(axum::middleware::from_fn_with_state(app_state.clone(), basic_auth));
+        .route_layer(axum::middleware::from_fn_with_state(app_state.clone(), basic_auth))
+        .with_state(app_state.clone());
 
     let bind_address = "0.0.0.0:9117";
     println!("Server running on http://{}", bind_address);
