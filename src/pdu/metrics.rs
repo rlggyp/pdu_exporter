@@ -106,7 +106,7 @@ impl PduMetrics {
     }
 }
 
-pub fn process_metrics(data: &Vec<String>) -> String {
+pub fn process_metrics(data: &Box<[Box<str>]>) -> String {
     let mut metrics = build_metrics();
 
     let mut addr = 1;

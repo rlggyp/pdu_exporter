@@ -8,7 +8,7 @@ use super::RAW_DATA_LENGTH;
 pub async fn fetch_raw_data(
     params: HashMap<String, String>,
     timeout: u64,
-) -> Result<Vec<String>, Response> {
+) -> Result<Box<[Box<str>]>, Response> {
     let target = match params.get("target") {
         Some(value) => value,
         None => return Err((StatusCode::BAD_REQUEST, "Missing `target` parameter").into_response()),
@@ -50,9 +50,10 @@ pub async fn fetch_raw_data(
     };
 
     let body = &response_text[pos + 4..];
-    let data: Vec<String> = body.split("?")
-        .map(|s| s.to_string())
-        .collect();
+    let data: Box<[Box<str>]> = body.split("?")
+        .map(|s| s.into())
+        .collect::<Vec<_>>()
+        .into_boxed_slice();
 
     if data.len() != RAW_DATA_LENGTH {
         return Err((StatusCode::UNPROCESSABLE_ENTITY, format!("Not a valid PDU device!")).into_response());
