@@ -38,6 +38,8 @@ pub async fn basic_auth(
     request: Request,
     next: Next
 ) -> Result<Response, StatusCode> {
+    let state = state.config.read().await;
+
     if state.basic_auth.credentials.is_empty() {
         return Ok(next.run(request).await);
     }
