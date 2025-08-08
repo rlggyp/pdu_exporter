@@ -5,6 +5,7 @@ mod pdu;
 use auth::basic_auth::{basic_auth, BasicAuth};
 use axum::{routing::get, Router};
 use std::sync::Arc;
+use tokio::signal::unix::{signal, SignalKind};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -34,5 +35,22 @@ async fn main() {
     println!("Server running on http://{}", bind_address);
 
     let listener = tokio::net::TcpListener::bind(bind_address).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+}
+
+async fn shutdown_signal() {
+    let mut sigint = signal(SignalKind::interrupt()).expect("failed to bind SIGINT handler");
+    let mut sigterm = signal(SignalKind::terminate()).expect("failed to bind SIGTERM handler");
+
+    tokio::select! {
+        _ = sigint.recv() => {
+            println!("SIGINT received, Gracefully shutting down.");
+        }
+        _ = sigterm.recv() => {
+            println!("SIGTERM received, Gracefully shutting down.");
+        }
+    }
 }
