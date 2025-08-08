@@ -1,11 +1,12 @@
 # PDU Exporter
 
-The **PDU Exporter** is a lightweight custom Prometheus exporter designed to collect metrics from PDU (Power Distribution Unit) devices that expose raw status data via the `/status.cgi` endpoint over HTTP. It transforms this data into Prometheus-compatible metrics.
+The **PDU Exporter** is a lightweight custom Prometheus exporter designed to collect metrics from Power Distribution Unit (PDU) devices that expose raw status data via the `/status.cgi` endpoint over HTTP, transforming this data into Prometheus-compatible metrics.
 
 ## Features
 
 * Connects directly to the PDU via raw TCP (port 80)
 * Sends a manual HTTP GET request
+* Supports basic authentication
 * Exposes metrics such as current, voltage, power, energy, temperature, humidity, and sensor existence
 * Dockerized for easy deployment
 
@@ -13,9 +14,9 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 
 | Metric Name    | Description                      | Labels               |
 | -------------- | -------------------------------- | -------------------- |
-| `current`      | Current in Ampere                | `address`            |
-| `voltage`      | Voltage in Volt                  | `address`            |
-| `power`        | Power in Watt                    | `address`            |
+| `current`      | Current in Amperes               | `address`            |
+| `voltage`      | Voltage in Volts                 | `address`            |
+| `power`        | Power in Watts                   | `address`            |
 | `power_factor` | Power factor (0.0 to 1.0)        | `address`            |
 | `energy`       | Energy in kilowatt-hours         | `address`            |
 | `temperature`  | Temperature in Celsius           | `address`, `channel` |
@@ -24,18 +25,35 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 
 ## API Endpoints
 
+### `/-/reload`
+
+**Method:** `POST, PUT`
+**Description:** Reloads the configuration without restarting the process.
+
+#### Example:
+
+```
+POST /-/reload
+PUT /-/reload
+```
+You can also reload configuration by sending the SIGHUP signal to the `pdu_exporter` process ID using the command below:
+```bash
+kill -s SIGHUP $(pidof pdu_exporter)
+```
+
 ### `/pdu`
 
 **Method:** `GET`
 **Query Parameters:**
 
-* `target`: IP address or hostname of the PDU
+* `target`: IP address or hostname of the PDU.
 
 #### Example:
 
 ```
 GET /pdu?target=192.168.1.1
 ```
+
 ### `/api/v1/rack_names`
 
 **Method:** `GET`
@@ -43,13 +61,13 @@ GET /pdu?target=192.168.1.1
 
 **Query Parameters:**
 
-* `target`: IP address or hostname of the PDU
+* `target`: IP address or hostname of the PDU.
 
 #### Example:
 
 ```
 GET /api/v1/rack_names?target=192.168.1.1
-````
+```
 
 #### Example Response (JSON):
 
@@ -62,7 +80,7 @@ GET /api/v1/rack_names?target=192.168.1.1
     "rack_32": "# 32 Rack AF"
   }
 }
-````
+```
 
 ## Prometheus Integration
 
@@ -82,6 +100,25 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: 127.0.0.1:9117  # Address of the PDU Exporter container or host
+    basic_auth:  # Sets the `Authorization` header on every request
+      username: user  # Configured username
+      password: pass   # Configured password
+```
+
+## PDU Exporter Config
+
+### Sample `pdu_exporter.yaml`:
+
+```yaml
+# How long until a scrape request times out.
+scrape_configs:
+  scrape_timeout: 5s
+
+# Usernames and hashed passwords that have full access to the web server via basic authentication.
+# If empty, no basic authentication is required. Passwords are hashed with bcrypt.
+basic_auth_users:
+  user: $2a$12$eId/v3HxJFjZWCkeTV/.VeUg5Qie66aPumgGlzELcy2ndCxpo5fV6
+  rlggyp: $2a$12$fKG1d9B5d7JDa78s7XBHDu/YD.46VK.t3W8BnujOwErrNCvRB9vsS
 ```
 
 ## Docker Usage
@@ -97,20 +134,20 @@ docker build -t pdu_exporter:latest .
 Then, run the container:
 
 ```bash
-docker run --init -d \
+docker run -d \
   --name pdu_exporter \
   -p 9117:9117 \
   pdu_exporter:latest
 ```
 
-### Option 2: Use Prebuilt Image from Docker Hub
+### Option 2: Use the Prebuilt Image from Docker Hub
 
 ```bash
 docker pull rlggyp/pdu_exporter:latest
 ```
 
 ```bash
-docker run --init -d \
+docker run -d \
   --name pdu_exporter \
   -p 9117:9117 \
   rlggyp/pdu_exporter:latest
@@ -118,16 +155,17 @@ docker run --init -d \
 
 ## Error Handling
 
-* Returns **400 Bad Request** if `target` is missing
-* Returns **404 Not Found** if TCP connection to the PDU fails
-* Returns **422 Unprocessable Entity** if response structure is invalid
-* Returns **500 Internal Server Error** for I/O or parsing errors
+* Returns **400 Bad Request** if `target` is missing.
+* Returns **404 Not Found** if the TCP connection to the PDU fails.
+* Returns **408 Request Timeout** if the connection to `target` times out.
+* Returns **422 Unprocessable Entity** if the response structure is invalid.
+* Returns **500 Internal Server Error** for I/O or parsing errors.
 
 ## Limitations
 
-* Assumes the PDU `/status.cgi` response has exactly 2016 elements
-* Metrics parsing is tightly coupled with this structure
-* Only supports plain TCP and HTTP (no TLS, no SNMP)
+* Assumes the PDU `/status.cgi` response contains exactly 2016 elements.
+* Metrics parsing is tightly coupled with this structure.
+* Only supports plain TCP and HTTP (no TLS, no SNMP).
 
 ## License
 
