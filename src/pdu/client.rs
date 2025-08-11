@@ -51,7 +51,7 @@ pub async fn fetch_raw_data(
 
     let body = &response_text[pos + 4..];
     let data: Box<[Box<str>]> = body.split("?")
-        .map(|s| s.into())
+        .map(|s| s.trim().into())
         .collect::<Vec<_>>()
         .into_boxed_slice();
 
