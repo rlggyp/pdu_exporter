@@ -14,5 +14,8 @@ edition = "2024"
 axum = { version = "0.8.4", features = ["tokio"] }
 base64 = "0.22.1"
 bcrypt = "0.17.0"
+log = "0.4.28"
+log4rs = "1.4.0"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_yaml = "0.9.34"
 tokio = { version = "1.46.1", features = ["full"] }

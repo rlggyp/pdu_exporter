@@ -11,7 +11,7 @@ pub async fn pdu_metrics(
     Query(params): Query<HashMap<String, String>>
 ) -> impl IntoResponse {
     let state = state.config.read().await;
-    match fetch_raw_data(params, state.scrape_timeout).await {
+    match fetch_raw_data(params, state.scrape_timeout_seconds).await {
         Ok(d) => (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(&d)).into_response(),
         Err(e) => e,
     }
@@ -22,7 +22,7 @@ pub async fn rack_names(
     Query(params): Query<HashMap<String, String>>
 ) -> impl IntoResponse {
     let state = state.config.read().await;
-    let data = match fetch_raw_data(params, state.scrape_timeout).await {
+    let data = match fetch_raw_data(params, state.scrape_timeout_seconds).await {
         Ok(d) => d,
         Err(e) => return e,
     };
