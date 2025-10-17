@@ -105,9 +105,9 @@ scrape_configs:
       password: pass   # Configured password
 ```
 
-## PDU Exporter Config
+## PDU Exporter Configuration
 
-### Sample `pdu_exporter.yaml`:
+### Example `pdu_exporter.yaml`
 
 ```yaml
 # How long until a scrape request times out.
@@ -119,38 +119,109 @@ scrape_configs:
 basic_auth_users:
   user: $2a$12$eId/v3HxJFjZWCkeTV/.VeUg5Qie66aPumgGlzELcy2ndCxpo5fV6
   rlggyp: $2a$12$fKG1d9B5d7JDa78s7XBHDu/YD.46VK.t3W8BnujOwErrNCvRB9vsS
+
+log_config_file: /etc/pdu_exporter/configs/log4rs.yaml
 ```
+
+### Example `log4rs.yaml`
+
+```yaml
+refresh_rate: 30 seconds
+
+appenders:
+  rolling_file:
+    kind: rolling_file
+    path: "/etc/pdu_exporter/logs/app.log"
+    policy:
+      kind: compound
+      trigger:
+        kind: size
+        limit: 1 mb
+      roller:
+        kind: fixed_window
+        pattern: "/etc/pdu_exporter/logs/app-{}.log"
+        base: 1
+        count: 7
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} [{l}] {t} - {m}{n}"
+
+root:
+  level: info
+  appenders:
+    - rolling_file
+```
+
+> **Note:**  
+> Make sure the `log_config_file` path in your `pdu_exporter.yaml` points to `/etc/pdu_exporter/configs/log4rs.yaml` if you use this structure.
 
 ## Docker Usage
 
-You have two options for running the PDU Exporter using Docker:
+### Docker Compose Example
 
-### Option 1: Build the Docker Image Locally
+Below is a sample `docker-compose.yaml`:
 
-```bash
-docker build -t pdu_exporter:latest .
+```yaml
+services:
+  pdu_exporter:
+    image: rlggyp/pdu_exporter:latest
+    container_name: pdu_exporter
+    user: 1000:1000
+    pull_policy: always
+    environment:
+      - CONFIG_FILE=/etc/pdu_exporter/configs/pdu_exporter.yaml
+    ports:
+      - 9117:9117
+    volumes:
+      - ./configs:/etc/pdu_exporter/configs
+      - ./logs:/etc/pdu_exporter/logs
+    restart: unless-stopped
 ```
 
-Then, run the container:
-
-```bash
-docker run -d \
-  --name pdu_exporter \
-  -p 9117:9117 \
-  pdu_exporter:latest
+**Directory structure example:**
+```
+.
+├── configs
+│   ├── pdu_exporter.yaml
+│   └── log4rs.yaml
+├── logs
+└── docker-compose.yaml
 ```
 
-### Option 2: Use the Prebuilt Image from Docker Hub
+- Place your `pdu_exporter.yaml` and `log4rs.yaml` in the `configs` directory.
+- Logs will be written to the `logs` directory.
+
+---
+
+### Running with Docker Compose
+
+You have two options to run the PDU Exporter:
+
+#### Option 1: Build the Docker Image Locally
+
+1. Build the image:
+
+    ```bash
+    docker build -t pdu_exporter:latest .
+    ```
+
+2. Edit your `docker-compose.yaml` and change the `image` line to use your local image:
+
+    ```yaml
+    image: pdu_exporter:latest
+    ```
+
+3. Start the service:
+
+    ```bash
+    docker compose up -d
+    ```
+
+#### Option 2: Use the Prebuilt Image from Docker Hub
+
+No need to build anything. Just use the provided `docker-compose.yaml` (with `image: rlggyp/pdu_exporter:latest`) and run:
 
 ```bash
-docker pull rlggyp/pdu_exporter:latest
-```
-
-```bash
-docker run -d \
-  --name pdu_exporter \
-  -p 9117:9117 \
-  rlggyp/pdu_exporter:latest
+docker compose up -d
 ```
 
 ## Error Handling
