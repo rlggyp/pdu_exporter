@@ -10,10 +10,17 @@ pub async fn pdu_metrics(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>
 ) -> impl IntoResponse {
+    log::debug!("pdu_metrics called with params: {:?}", params);
     let state = state.config.read().await;
     match fetch_raw_data(params, state.scrape_timeout_seconds).await {
-        Ok(d) => (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(&d)).into_response(),
-        Err(e) => e,
+        Ok(d) => {
+            log::debug!("fetch_raw_data succeeded, processing metrics");
+            (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(&d)).into_response()
+        },
+        Err(e) => {
+            log::debug!("fetch_raw_data failed");
+            e
+        },
     }
 }
 
@@ -21,19 +28,29 @@ pub async fn rack_names(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>
 ) -> impl IntoResponse {
+    log::debug!("rack_names called with params: {:?}", params);
     let state = state.config.read().await;
     let data = match fetch_raw_data(params, state.scrape_timeout_seconds).await {
-        Ok(d) => d,
-        Err(e) => return e,
+        Ok(d) => {
+            log::debug!("fetch_raw_data succeeded");
+            d
+        },
+        Err(e) => {
+            log::debug!("fetch_raw_data failed");
+            return e;
+        },
     };
 
     let mut rack_names: HashMap<String, String> = HashMap::new();
 
     let mut address = 1;
     for i in (0..RAW_DATA_LENGTH).step_by(METRIC_STEP) {
+        log::debug!("Inserting rack_{}: # {} {}", address, address, data[i+1]);
         rack_names.insert(format!("rack_{}", address), format!("# {} {}", address, data[i+1]));
         address += 1;
     }
+
+    log::debug!("rack_names response: {:?}", rack_names);
 
     (StatusCode::OK, Json(HashMap::from([("rack_names", rack_names)]))).into_response()
 }
