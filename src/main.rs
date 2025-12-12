@@ -20,9 +20,10 @@ impl AppConfig {
     fn new(config: Config) -> Self {
         let credentials = config.basic_auth_users.clone();
         let scrape_timeout_seconds = config.scrape_configs.scrape_timeout_seconds;
+        let auth_header_cache: Arc<RwLock<Vec::<String>>> = Arc::new(RwLock::new(Vec::new()));
 
         Self {
-            basic_auth: BasicAuth { credentials },
+            basic_auth: BasicAuth { credentials, auth_header_cache },
             scrape_timeout_seconds,
         }
     }
