@@ -119,8 +119,6 @@ scrape_configs:
 basic_auth_users:
   user: $2a$12$eId/v3HxJFjZWCkeTV/.VeUg5Qie66aPumgGlzELcy2ndCxpo5fV6
   rlggyp: $2a$12$fKG1d9B5d7JDa78s7XBHDu/YD.46VK.t3W8BnujOwErrNCvRB9vsS
-
-log_config_file: /etc/pdu_exporter/configs/log4rs.yaml
 ```
 
 ### Example `log4rs.yaml`
@@ -151,9 +149,6 @@ root:
     - rolling_file
 ```
 
-> **Note:**  
-> Make sure the `log_config_file` path in your `pdu_exporter.yaml` points to `/etc/pdu_exporter/configs/log4rs.yaml` if you use this structure.
-
 ## Docker Usage
 
 ### Docker Compose Example
@@ -169,6 +164,7 @@ services:
     pull_policy: always
     environment:
       - CONFIG_FILE=/etc/pdu_exporter/configs/pdu_exporter.yaml
+      - LOG_CONFIG_FILE=/etc/pdu_exporter/configs/log4rs.yaml
     ports:
       - 9117:9117
     volumes:

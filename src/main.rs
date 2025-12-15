@@ -85,10 +85,13 @@ impl AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let config = Config::get_config()?;
+    let log_config_file = std::env::var("LOG_CONFIG_FILE")
+        .expect("Environment variable `LOG_CONFIG_FILE` not found");
 
-    log4rs::init_file(&config.log_config_file, Default::default())
+    log4rs::init_file(&log_config_file, Default::default())
         .expect("Failed to init log4rs");
+
+    let config = Config::get_config()?;
 
     let app_state = AppState::new(config);
 

@@ -19,8 +19,6 @@ pub struct Config {
     pub scrape_configs: ScrapeConfigs,
     #[serde(default = "Config::default_basic_auth_users")]
     pub basic_auth_users: HashMap<String, String>,
-    #[serde(default = "Config::default_log_config_file")]
-    pub log_config_file: String,
 }
 
 impl Config {
@@ -32,10 +30,6 @@ impl Config {
         ScrapeConfigs {
             scrape_timeout_seconds: 10,
         }
-    }
-
-    fn default_log_config_file() -> String {
-        String::from("log4rs.yaml")
     }
 }
 
