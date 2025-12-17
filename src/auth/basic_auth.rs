@@ -2,7 +2,7 @@ use crate::AppState;
 
 use std::sync::Arc;
 use std::collections::HashMap;
-use axum::{extract::{Request, State}, http::StatusCode, middleware::Next, response::Response};
+use axum::{extract::{Request, State}, http::{HeaderMap, HeaderValue, StatusCode, header}, middleware::Next, response::{IntoResponse, Response}};
 use base64::{engine::general_purpose, Engine};
 use tokio::sync::RwLock;
 
@@ -95,7 +95,10 @@ pub async fn basic_auth(
     State(state): State<Arc<AppState>>,
     request: Request,
     next: Next
-) -> Result<Response, StatusCode> {
+) -> Result<Response, impl IntoResponse> {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Basic realm=\"PDU Exporter\""));
+
     let is_valid_userpass;
 
     {
@@ -112,11 +115,11 @@ pub async fn basic_auth(
     
         let Some(auth_header) = auth_header else {
             log::debug!("No Authorization header found");
-            return Err(StatusCode::UNAUTHORIZED)
+            return Err((StatusCode::UNAUTHORIZED, headers))
         };
 
         let Some(credential) = BasicAuth::is_valid_basic_auth_header(auth_header) else {
-            return Err(StatusCode::UNAUTHORIZED)
+            return Err((StatusCode::UNAUTHORIZED, headers))
         };
 
         {
@@ -135,6 +138,6 @@ pub async fn basic_auth(
         Ok(next.run(request).await)
     } else {
         log::debug!("Authorization failed");
-        Err(StatusCode::UNAUTHORIZED)
+        Err((StatusCode::UNAUTHORIZED, headers))
     }
 }

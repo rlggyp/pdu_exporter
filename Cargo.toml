@@ -1,14 +1,15 @@
+[package]
+name = "pdu_exporter"
+authors = ["Erlangga Yudi Pradana"]
+version = "0.1.0"
+edition = "2024"
+
 [profile.release]
 panic = "abort"
 lto = true
 strip = true
 opt-level = 3
 codegen-units = 1
-
-[package]
-name = "pdu_exporter"
-version = "0.1.0"
-edition = "2024"
 
 [dependencies]
 axum = { version = "0.8.4", features = ["tokio"] }
