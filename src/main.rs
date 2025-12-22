@@ -98,7 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = Router::new()
         .route("/-/reload", post(reload_config).put(reload_config))
         .route("/pdu", get(pdu::handler::pdu_metrics))
-        .route("/api/v1/rack_names", get(pdu::handler::rack_names))
+        .route("/api/rack-names", get(pdu::handler::rack_names))
         .route_layer(axum::middleware::from_fn_with_state(app_state.clone(), basic_auth))
         .with_state(app_state.clone());
 

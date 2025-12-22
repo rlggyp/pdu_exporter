@@ -54,7 +54,7 @@ kill -s SIGHUP $(pidof pdu_exporter)
 GET /pdu?target=192.168.1.1
 ```
 
-### `/api/v1/rack_names`
+### `/api/rack-names`
 
 **Method:** `GET`
 **Description:** Returns a list of rack names extracted from each PDU address block.
@@ -66,7 +66,7 @@ GET /pdu?target=192.168.1.1
 #### Example:
 
 ```
-GET /api/v1/rack_names?target=192.168.1.1
+GET /api/rack-names?target=192.168.1.1
 ```
 
 #### Example Response (JSON):
@@ -99,10 +99,10 @@ scrape_configs:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: 127.0.0.1:9117  # Address of the PDU Exporter container or host
-    basic_auth:  # Sets the `Authorization` header on every request
-      username: user  # Configured username
-      password: pass   # Configured password
+        replacement: 127.0.0.1:9117 # Address of the PDU Exporter container or host
+    basic_auth: # Sets the `Authorization` header on every request
+      username: user # Configured username
+      password: pass # Configured password
 ```
 
 ## PDU Exporter Configuration
@@ -223,6 +223,7 @@ docker compose up -d
 ## Error Handling
 
 * Returns **400 Bad Request** if `target` is missing.
+* Returns **401 Unauthorized** if authentication fails.
 * Returns **404 Not Found** if the TCP connection to the PDU fails.
 * Returns **408 Request Timeout** if the connection to `target` times out.
 * Returns **422 Unprocessable Entity** if the response structure is invalid.
