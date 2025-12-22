@@ -52,7 +52,7 @@ impl BasicAuth {
     }
 
     fn parse_user_pass(&self, credential: &String) -> Option<(String, String)> {
-        let parts: Vec<&str> = credential.split(':').collect();
+        let parts: Vec<&str> = credential.splitn(2,':').collect();
 
         if parts.len() != 2 {
             log::debug!("Credential does not contain a valid `user:pass` format");
