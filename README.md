@@ -4,8 +4,6 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 
 ## Features
 
-* Connects directly to the PDU via raw TCP (port 80)
-* Sends a manual HTTP GET request
 * Supports basic authentication
 * Exposes metrics such as current, voltage, power, energy, temperature, humidity, and sensor existence
 * Dockerized for easy deployment
@@ -222,18 +220,17 @@ docker compose up -d
 
 ## Error Handling
 
-* Returns **400 Bad Request** if `target` is missing.
-* Returns **401 Unauthorized** if authentication fails.
-* Returns **404 Not Found** if the TCP connection to the PDU fails.
-* Returns **408 Request Timeout** if the connection to `target` times out.
-* Returns **422 Unprocessable Entity** if the response structure is invalid.
-* Returns **500 Internal Server Error** for I/O or parsing errors.
+* **400 Bad Request**: `target` parameter is missing.
+* **401 Unauthorized**: Authentication fails.
+* **502 Bad Gateway**: Device returned an error (non-200 response).
+* **503 Service Unavailable**: PDU is unreachable (network error).
+* **500 Internal Server Error**: I/O or parsing errors.
 
 ## Limitations
 
 * Assumes the PDU `/status.cgi` response contains exactly 2016 elements.
 * Metrics parsing is tightly coupled with this structure.
-* Only supports plain TCP and HTTP (no TLS, no SNMP).
+* Only supports plain HTTP (no TLS, no SNMP).
 
 ## License
 
