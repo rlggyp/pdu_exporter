@@ -10,6 +10,7 @@ FROM gcr.io/distroless/cc
 COPY --from=builder /app/target/release/pdu_exporter /pdu_exporter
 COPY --from=builder /etc/pdu_exporter /etc/pdu_exporter
 
+ENV TZ=Asia/Jakarta
 EXPOSE 9117
 USER nonroot
 ENTRYPOINT ["/pdu_exporter"]
