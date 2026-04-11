@@ -21,9 +21,8 @@ pub async fn pdu_metrics(
     };
 
     let state = state.config.read().await;
-    let timeout = state.scrape_timeout_seconds;
 
-    match state.client.fetch_data(target, timeout).await {
+    match state.client.fetch_data(target).await {
         Ok(d) => {
             log::debug!("fetch_raw_data succeeded, processing metrics");
             (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(&d)).into_response()
@@ -50,9 +49,8 @@ pub async fn rack_names(
     };
 
     let state = state.config.read().await;
-    let timeout = state.scrape_timeout_seconds;
 
-    let data = match state.client.fetch_data(target, timeout).await {
+    let data = match state.client.fetch_data(target).await {
         Ok(d) => {
             log::debug!("fetch_raw_data succeeded");
             d

@@ -15,20 +15,18 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 #[derive(Clone)]
 pub struct AppConfig {
     basic_auth: BasicAuth,
-    scrape_timeout_seconds: u64,
     client: pdu::client::Client,
 }
 
 impl AppConfig {
     fn new(config: Config) -> Result<Self, Error> {
         let credentials = config.basic_auth_users.clone();
-        let scrape_timeout_seconds = config.scrape_configs.scrape_timeout_seconds;
         let auth_header_cache: Arc<RwLock<Vec::<String>>> = Arc::new(RwLock::new(Vec::new()));
+        let client = pdu::client::Client::new(config.scrape_configs)?;
 
         let app_config = Self {
             basic_auth: BasicAuth { credentials, auth_header_cache },
-            scrape_timeout_seconds,
-            client: pdu::client::Client::new()?,
+            client,
         };
 
         Ok(app_config)

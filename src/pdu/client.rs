@@ -1,4 +1,6 @@
-use crate::Error;
+use crate::{Error, config};
+
+use std::time::Duration;
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -9,14 +11,15 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new() -> Result<Self, Error> {
+    pub fn new(config: config::ScrapeConfigs) -> Result<Self, Error> {
         let http_client = reqwest::ClientBuilder::new()
             .http1_only()
             .http1_ignore_invalid_headers_in_responses(true)
-            .pool_idle_timeout(std::time::Duration::from_secs(30))
-            .pool_max_idle_per_host(2)
-            .connect_timeout(std::time::Duration::from_secs(5))
-            .tcp_keepalive(Some(std::time::Duration::from_secs(10)))
+            .tcp_keepalive(Some(Duration::from_secs(config.connect_timeout_seconds)))
+            .pool_max_idle_per_host(config.pool_max_idle_per_host)
+            .pool_idle_timeout(std::time::Duration::from_secs(config.pool_idle_timeout_seconds))
+            .connect_timeout(Duration::from_secs(config.connect_timeout_seconds))
+            .timeout(Duration::from_secs(config.scrape_timeout_seconds))
             .build()?;
 
         let client = Self { http_client };
@@ -24,16 +27,11 @@ impl Client {
         Ok(client)
     }
 
-    pub async fn fetch_data(
-        &self,
-        target: &str,
-        timeout: u64,
-    ) -> Result<Box<[Box<str>]>, Response> {
+    pub async fn fetch_data(&self, target: &str) -> Result<Box<[Box<str>]>, Response> {
         let url = format!("http://{}/status.cgi", target);
 
         let response = self.http_client
             .get(&url)
-            .timeout(std::time::Duration::from_secs(timeout))
             .send()
             .await
             .map_err(|e| {

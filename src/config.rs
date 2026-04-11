@@ -5,13 +5,37 @@ use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 pub struct ScrapeConfigs {
+    #[serde(default = "ScrapeConfigs::default_pool_max_idle_per_host")]
+    pub pool_max_idle_per_host: usize,
+    #[serde(default = "ScrapeConfigs::default_tcp_keepalive_seconds")]
+    pub tcp_keepalive_seconds: u64,
     #[serde(default = "ScrapeConfigs::default_scrape_timeout_seconds")]
     pub scrape_timeout_seconds: u64,
+    #[serde(default = "ScrapeConfigs::default_connect_timeout_seconds")]
+    pub connect_timeout_seconds: u64,
+    #[serde(default = "ScrapeConfigs::default_pool_idle_timeout_seconds")]
+    pub pool_idle_timeout_seconds: u64,
 }
 
 impl ScrapeConfigs {
+    fn default_pool_max_idle_per_host() -> usize {
+        2
+    }
+
+    fn default_tcp_keepalive_seconds() -> u64 {
+        10
+    }
+
     fn default_scrape_timeout_seconds() -> u64 {
         10
+    }
+
+    fn default_connect_timeout_seconds() -> u64 {
+        2
+    }
+
+    fn default_pool_idle_timeout_seconds() -> u64 {
+        30
     }
 }
 
@@ -30,7 +54,11 @@ impl Config {
 
     fn default_scrape_configs() -> ScrapeConfigs {
         ScrapeConfigs {
+            pool_max_idle_per_host: 2,
+            tcp_keepalive_seconds: 10,
             scrape_timeout_seconds: 10,
+            connect_timeout_seconds: 2,
+            pool_idle_timeout_seconds: 30,
         }
     }
 }
