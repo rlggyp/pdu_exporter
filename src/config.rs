@@ -1,3 +1,5 @@
+use crate::Error;
+
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -34,7 +36,7 @@ impl Config {
 }
 
 impl Config {
-    pub fn get_config() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn get_config() -> Result<Self, Error> {
         let config_file = std::env::var("CONFIG_FILE")
             .map_err(|e| {
                 let error = format!("Environment variable `CONFIG_FILE` not found {}", e);

@@ -10,22 +10,28 @@ use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::{RwLock, watch};
 
+type Error = Box<dyn std::error::Error + Send + Sync>;
+
 #[derive(Clone)]
 pub struct AppConfig {
     basic_auth: BasicAuth,
     scrape_timeout_seconds: u64,
+    client: pdu::client::Client,
 }
 
 impl AppConfig {
-    fn new(config: Config) -> Self {
+    fn new(config: Config) -> Result<Self, Error> {
         let credentials = config.basic_auth_users.clone();
         let scrape_timeout_seconds = config.scrape_configs.scrape_timeout_seconds;
         let auth_header_cache: Arc<RwLock<Vec::<String>>> = Arc::new(RwLock::new(Vec::new()));
 
-        Self {
+        let app_config = Self {
             basic_auth: BasicAuth { credentials, auth_header_cache },
             scrape_timeout_seconds,
-        }
+            client: pdu::client::Client::new()?,
+        };
+
+        Ok(app_config)
     }
 }
 
@@ -36,8 +42,8 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(config: Config) -> Arc<Self> {
-        let config = AppConfig::new(config);
+    pub fn new(config: Config) -> Result<Arc<Self>, Error> {
+        let config = AppConfig::new(config)?;
 
         let (reload_tx, reload_rx) = watch::channel(false);
         let config = Arc::new(RwLock::new(config));
@@ -50,7 +56,7 @@ impl AppState {
         AppState::spawn_reload_config_subscriber(app_state.clone(), reload_rx);
         AppState::spawn_sighup_handler(app_state.clone());
 
-        app_state
+        Ok(app_state)
     }
 
     fn spawn_reload_config_subscriber(app_state: Arc<AppState>, mut reload_rx: watch::Receiver<bool>) {
@@ -60,8 +66,15 @@ impl AppState {
                     log::info!("Reload triggered by subscriber...");
                     match Config::get_config() {
                         Ok(config) => {
-                            *app_state.config.write().await = AppConfig::new(config);
-                            log::info!("Reload complete.");
+                            match AppConfig::new(config) {
+                                Ok(new_config) => {
+                                    *app_state.config.write().await = new_config;
+                                    log::info!("Reload complete.");
+                                },
+                                Err(e) => {
+                                    log::error!("Failed to reload: {}.", e);
+                                }
+                            };
                         },
                         Err(error) => log::error!("{}", error),
                     }
@@ -84,7 +97,7 @@ impl AppState {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn main() -> Result<(), Error> {
     let log_config_file = std::env::var("LOG_CONFIG_FILE")
         .expect("Environment variable `LOG_CONFIG_FILE` not found");
 
@@ -93,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let config = Config::get_config()?;
 
-    let app_state = AppState::new(config);
+    let app_state = AppState::new(config)?;
 
     let app = Router::new()
         .route("/-/reload", post(reload_config).put(reload_config))

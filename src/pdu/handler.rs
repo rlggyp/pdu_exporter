@@ -4,15 +4,26 @@ use std::sync::Arc;
 
 use crate::AppState;
 
-use super::{METRIC_STEP, RAW_DATA_LENGTH, metrics::process_metrics, client::fetch_raw_data};
+use super::{METRIC_STEP, RAW_DATA_LENGTH, metrics::process_metrics};
 
 pub async fn pdu_metrics(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>
 ) -> impl IntoResponse {
     log::debug!("pdu_metrics called with params: {:?}", params);
+
+    let target = match params.get("target") {
+        Some(value) => value,
+        None => {
+            log::debug!("Missing `target` parameter");
+            return (StatusCode::BAD_REQUEST, "Missing `target` parameter").into_response();
+        },
+    };
+
     let state = state.config.read().await;
-    match fetch_raw_data(params, state.scrape_timeout_seconds).await {
+    let timeout = state.scrape_timeout_seconds;
+
+    match state.client.fetch_data(target, timeout).await {
         Ok(d) => {
             log::debug!("fetch_raw_data succeeded, processing metrics");
             (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(&d)).into_response()
@@ -29,8 +40,19 @@ pub async fn rack_names(
     Query(params): Query<HashMap<String, String>>
 ) -> impl IntoResponse {
     log::debug!("rack_names called with params: {:?}", params);
+
+    let target = match params.get("target") {
+        Some(value) => value,
+        None => {
+            log::debug!("Missing `target` parameter");
+            return (StatusCode::BAD_REQUEST, "Missing `target` parameter").into_response();
+        },
+    };
+
     let state = state.config.read().await;
-    let data = match fetch_raw_data(params, state.scrape_timeout_seconds).await {
+    let timeout = state.scrape_timeout_seconds;
+
+    let data = match state.client.fetch_data(target, timeout).await {
         Ok(d) => {
             log::debug!("fetch_raw_data succeeded");
             d

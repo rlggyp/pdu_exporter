@@ -12,11 +12,12 @@ opt-level = 3
 codegen-units = 1
 
 [dependencies]
-axum = { version = "0.8.4", features = ["tokio"] }
+axum = { version = "0.8.8", features = ["tokio"] }
 base64 = "0.22.1"
-bcrypt = "0.17.0"
-log = "0.4.28"
+bcrypt = "0.19.0"
+log = "0.4.29"
 log4rs = "1.4.0"
+reqwest = "0.13.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_yaml = "0.9.34"
-tokio = { version = "1.46.1", features = ["full"] }
+tokio = { version = "1.51.1", features = ["full"] }
