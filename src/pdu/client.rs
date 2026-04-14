@@ -35,16 +35,18 @@ impl Client {
             .send()
             .await
             .map_err(|e| {
-                log::error!("Request failed: {}", e);
+                log::debug!("Request to {} failed: {}", target, e);
                 (StatusCode::SERVICE_UNAVAILABLE, "PDU Unreachable").into_response()
             })?;
 
         
         if response.status() != StatusCode::OK {
+            log::debug!("Device at {} returned error: {}", target, response.status().as_str());
             return Err((StatusCode::BAD_GATEWAY, "Device returned error").into_response());
         }
 
-        let body: String = response.text().await.map_err(|_| {
+        let body: String = response.text().await.map_err(|e| {
+            log::debug!("Failed to read body from {}: {}", target, e);
             (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read body").into_response()
         })?;
 

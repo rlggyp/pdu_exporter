@@ -61,31 +61,28 @@ impl AppState {
         tokio::spawn(async move {
             while reload_rx.changed().await.is_ok() {
                 if *reload_rx.borrow() {
-                    log::info!("Reload triggered by subscriber...");
-                    match Config::get_config() {
-                        Ok(config) => {
-                            match AppConfig::new(config) {
-                                Ok(new_config) => {
-                                    *app_state.config.write().await = new_config;
-                                    log::info!("Reload complete.");
-                                },
-                                Err(e) => {
-                                    log::error!("Failed to reload: {}.", e);
-                                }
-                            };
-                        },
-                        Err(error) => log::error!("{}", error),
-                    }
-
-                    let _ = app_state.reload_tx.send(false);
+                    continue;
                 }
+
+                log::info!("Reload triggered by subscriber...");
+                match Config::get_config().and_then(AppConfig::new) {
+                    Ok(new_config) => {
+                        *app_state.config.write().await = new_config;
+                        log::info!("Reload complete.");
+                    },
+                    Err(e) => log::error!("Failed to reload config: {}.", e)
+                }
+
+                let _ = app_state.reload_tx.send(false);
             }
         });
     }
 
     fn spawn_sighup_handler(app_state: Arc<AppState>) {
         tokio::spawn(async move {
-            let mut hup = signal(SignalKind::hangup()).expect("failed to bind SIGHUP");
+            let mut hup = signal(SignalKind::hangup())
+                .expect("failed to bind SIGHUP");
+
             while hup.recv().await.is_some() {
                 log::info!("Received SIGHUP, sending reload signal...");
                 let _ = app_state.reload_tx.send(true);
@@ -130,12 +127,8 @@ async fn shutdown_signal() {
     let mut sigterm = signal(SignalKind::terminate()).expect("failed to bind SIGTERM handler");
 
     tokio::select! {
-        _ = sigint.recv() => {
-            log::info!("SIGINT received, Gracefully shutting down.");
-        }
-        _ = sigterm.recv() => {
-            log::info!("SIGTERM received, Gracefully shutting down.");
-        }
+        _ = sigint.recv() => log::info!("SIGINT received, Gracefully shutting down."),
+        _ = sigterm.recv() => log::info!("SIGTERM received, Gracefully shutting down."),
     }
 }
 
