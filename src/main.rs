@@ -60,7 +60,7 @@ impl AppState {
     fn spawn_reload_config_subscriber(app_state: Arc<AppState>, mut reload_rx: watch::Receiver<bool>) {
         tokio::spawn(async move {
             while reload_rx.changed().await.is_ok() {
-                if *reload_rx.borrow() {
+                if !*reload_rx.borrow() {
                     continue;
                 }
 
