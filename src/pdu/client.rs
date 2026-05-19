@@ -15,9 +15,6 @@ impl Client {
         let http_client = reqwest::ClientBuilder::new()
             .http1_only()
             .http1_ignore_invalid_headers_in_responses(true)
-            .tcp_keepalive(Some(Duration::from_secs(config.connect_timeout_seconds)))
-            .pool_max_idle_per_host(config.pool_max_idle_per_host)
-            .pool_idle_timeout(std::time::Duration::from_secs(config.pool_idle_timeout_seconds))
             .connect_timeout(Duration::from_secs(config.connect_timeout_seconds))
             .timeout(Duration::from_secs(config.scrape_timeout_seconds))
             .build()?;
