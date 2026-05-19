@@ -108,22 +108,13 @@ scrape_configs:
 ### Example `pdu_exporter.yaml`
 
 ```yaml
-# How long until a scrape request times out.
+# Scrape configuration timeouts
 scrape_configs:
-  # Interval (in seconds) for sending TCP keepalive packets to the PDU.
-  tcp_keepalive_seconds: 10
-
   # Maximum duration (in seconds) allowed for a single scrape request.
-  scrape_timeout_seconds: 5
+  scrape_timeout_seconds: 10
 
   # Maximum time (in seconds) to wait when establishing a TCP connection to the PDU.
   connect_timeout_seconds: 2
-
-  # How long (in seconds) an idle connection is kept in the pool before being closed.
-  pool_idle_timeout_seconds: 30
-
-  # Maximum number of idle connections to keep per host in the connection pool.
-  pool_max_idle_per_host: 2
 
 # Usernames and hashed passwords that have full access to the web server via basic authentication.
 # If empty, no basic authentication is required. Passwords are hashed with bcrypt.
