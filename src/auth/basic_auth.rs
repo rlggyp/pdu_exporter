@@ -1,7 +1,6 @@
 use crate::AppState;
 
-use std::sync::Arc;
-use std::collections::HashMap;
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 use axum::{extract::{Request, State}, http::{HeaderMap, HeaderValue, StatusCode, header}, middleware::Next, response::{IntoResponse, Response}};
 use base64::{engine::general_purpose, Engine};
 use tokio::sync::RwLock;
@@ -15,10 +14,27 @@ pub struct Credential {
 #[derive(Clone)]
 pub struct BasicAuth {
     pub credentials: HashMap<String, String>,
-    pub auth_header_cache: Arc<RwLock<Vec<String>>>,
+    pub hashed_credential_cache: Arc<RwLock<HashSet<String>>>,
+    pub cache_key: [u8; 32],
 }
 
 impl BasicAuth {
+    pub fn new(credentials: HashMap<String, String>) -> Self {
+        let mut key = [0u8; 32];
+        getrandom::fill(&mut key).expect("Failed to generate random key");
+        
+        Self {
+            credentials,
+            hashed_credential_cache: Arc::new(RwLock::new(HashSet::new())),
+            cache_key: key,
+        }
+    }
+
+    fn hash_credential(key: &[u8; 32], credential: &str) -> String {
+        let hash = blake3::keyed_hash(key, credential.as_bytes());
+        hash.to_hex().to_string()
+    }
+
     fn is_valid_basic_auth_header(auth_header: &str) -> Option<Credential> {
         log::debug!("Checking if Authorization header is valid Basic Auth: {}", auth_header);
 
@@ -75,9 +91,14 @@ impl BasicAuth {
             Some(hash) => {
                 let verified = bcrypt::verify(password, &hash).unwrap_or(false);
 
-                let mut cache = self.auth_header_cache.write().await;
-                if verified && !cache.contains(&credential.encoded) {
-                    cache.push(credential.encoded.clone());
+                if verified {
+                    let hashed_credential = BasicAuth::hash_credential(&self.cache_key, &credential.encoded);
+
+                    let is_cached = self.hashed_credential_cache.read().await.contains(&hashed_credential);
+                    if !is_cached {
+                        let mut cache = self.hashed_credential_cache.write().await;
+                        cache.insert(hashed_credential);
+                    }
                 }
 
                 log::debug!("Password verification for user {}: {}", username, verified);
@@ -123,8 +144,10 @@ pub async fn basic_auth(
         };
 
         {
-            let cache = state.basic_auth.auth_header_cache.read().await;
-            if cache.contains(&credential.encoded) {
+            let hashed_credential = BasicAuth::hash_credential(&state.basic_auth.cache_key, &credential.encoded);
+
+            let is_cached = state.basic_auth.hashed_credential_cache.read().await.contains(&hashed_credential);
+            if is_cached {
                 log::debug!("Authorization header found in cache, skipping further verification");
                 return Ok(next.run(request).await);
             }

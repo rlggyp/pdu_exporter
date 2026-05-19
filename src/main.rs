@@ -21,11 +21,10 @@ pub struct AppConfig {
 impl AppConfig {
     fn new(config: Config) -> Result<Self, Error> {
         let credentials = config.basic_auth_users.clone();
-        let auth_header_cache: Arc<RwLock<Vec::<String>>> = Arc::new(RwLock::new(Vec::new()));
         let client = pdu::client::Client::new(config.scrape_configs)?;
 
         let app_config = Self {
-            basic_auth: BasicAuth { credentials, auth_header_cache },
+            basic_auth: BasicAuth::new(credentials),
             client,
         };
 
