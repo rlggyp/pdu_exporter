@@ -51,7 +51,14 @@ impl<'a> GaugeSample<'a> {
     fn set(&mut self, value: &str) {
         log::debug!("Setting sample for {} with labels {{{}}}: value={}", self.name, self.labels, value);
         let formatted = format_number(value);
-        let sample = format!("{}{{{}}} {}", self.name, self.labels, formatted);
+
+        let sample: String;
+        if self.labels.is_empty() {
+            sample = format!("{} {}", self.name, formatted);
+        } else {
+            sample = format!("{}{{{}}} {}", self.name, self.labels, formatted);
+        }
+
         self.samples.push(sample);
     }
 }
@@ -86,6 +93,8 @@ struct PduMetrics {
     temperature: GaugeVec,
     humidity: GaugeVec,
     sensor_exists: GaugeVec,
+    total_load: GaugeVec,
+    total_load_current: GaugeVec,
 }
 
 impl PduMetrics {
@@ -100,6 +109,8 @@ impl PduMetrics {
            &mut self.temperature,
            &mut self.humidity,
            &mut self.sensor_exists,
+           &mut self.total_load,
+           &mut self.total_load_current,
         ];
 
        metrics.sort_by(|a, b| a.name.cmp(&b.name));
@@ -122,6 +133,9 @@ pub fn process_metrics(data: &Box<[Box<str>]>) -> String {
     log::debug!("Processing metrics for data length: {}", data.len());
     let mut metrics = build_metrics();
 
+    let mut total_load: f32 = 0.0;
+    let mut total_load_current: f32 = 0.0;
+
     let mut addr = 1;
     for i in (0..RAW_DATA_LENGTH).step_by(METRIC_STEP) {
         let address = addr.to_string();
@@ -133,6 +147,9 @@ pub fn process_metrics(data: &Box<[Box<str>]>) -> String {
         metrics.power.with_label_values(&[&address]).set(&data[i+12]);
         metrics.power_factor.with_label_values(&[&address]).set(&data[i+13]);
         metrics.energy.with_label_values(&[&address]).set(&data[i+14]);
+
+        total_load += (data[i+12]).parse::<f32>().unwrap_or(0.0);
+        total_load_current += (data[i+10]).parse::<f32>().unwrap_or(0.0);
 
         const TEMP_INDEX_OFFSET: usize = 15;
 
@@ -154,6 +171,9 @@ pub fn process_metrics(data: &Box<[Box<str>]>) -> String {
 
     log::debug!("Sensor exists: temperature={}, humidity={}", has_temperature, has_humidity);
 
+    metrics.total_load.with_label_values(&[]).set(&total_load.to_string());
+    metrics.total_load_current.with_label_values(&[]).set(&total_load_current.to_string());
+
     metrics.sensor_exists.with_label_values(&["temperature"]).set(&has_temperature);
     metrics.sensor_exists.with_label_values(&["humidity"]).set(&has_humidity);
     let result = metrics.export_metrics();
@@ -172,5 +192,7 @@ fn build_metrics() -> PduMetrics {
         temperature: GaugeVec::new("temperature", "Temperature in celsius", &["address", "channel"]),
         humidity: GaugeVec::new("humidity", "Humidity in percent", &["address", "channel"]),
         sensor_exists: GaugeVec::new("sensor_exists", "Sensor exists (bool)", &["type"]),
+        total_load: GaugeVec::new("total_load", "Total load in watt(W)", &[]),
+        total_load_current: GaugeVec::new("total_load_current", "Total load current in ampere(A)", &[]),
     }
 }
