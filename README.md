@@ -5,21 +5,23 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 ## Features
 
 * Supports basic authentication
-* Exposes metrics such as current, voltage, power, energy, temperature, humidity, and sensor existence
+* Exposes metrics such as current, voltage, power, energy, temperature, humidity, sensor existence, total_load, total_load_current
 * Dockerized for easy deployment
 
 ## Exported Metrics
 
-| Metric Name    | Description                      | Labels               |
-| -------------- | -------------------------------- | -------------------- |
-| `current`      | Current in Amperes               | `address`            |
-| `voltage`      | Voltage in Volts                 | `address`            |
-| `power`        | Power in Watts                   | `address`            |
-| `power_factor` | Power factor (0.0 to 1.0)        | `address`            |
-| `energy`       | Energy in kilowatt-hours         | `address`            |
-| `temperature`  | Temperature in Celsius           | `address`, `channel` |
-| `humidity`     | Humidity in percent              | `address`, `channel` |
-| `sensor_exists`| Sensor existence (1.0 or 0.0)    | `type`               |
+| Metric Name         | Description                      | Labels               |
+| ------------------- | -------------------------------- | -------------------- |
+| `current`           | Current in Amperes               | `address`            |
+| `voltage`           | Voltage in Volts                 | `address`            |
+| `power`             | Power in Watts                   | `address`            |
+| `power_factor`      | Power factor (0.0 to 1.0)        | `address`            |
+| `energy`            | Energy in kilowatt-hours         | `address`            |
+| `temperature`       | Temperature in Celsius           | `address`, `channel` |
+| `humidity`          | Humidity in percent              | `address`, `channel` |
+| `sensor_exists`     | Sensor existence (1.0 or 0.0)    | `type`               |
+| `total_load`        | Total load in watt(W)            |                      |
+| `total_load_current`| Total load current in ampere(A)  |                      |
 
 ## API Endpoints
 
