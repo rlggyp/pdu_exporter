@@ -5,7 +5,7 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 ## Features
 
 * Supports basic authentication
-* Exposes metrics such as current, voltage, power, energy, temperature, humidity, sensor existence, total_load, total_load_current
+* Exposes metrics such as current, voltage, power, energy, temperature, humidity, sensor existence, total_power, total_current
 * Dockerized for easy deployment
 
 ## Exported Metrics
@@ -20,14 +20,14 @@ The **PDU Exporter** is a lightweight custom Prometheus exporter designed to col
 | `temperature`       | Temperature in Celsius           | `address`, `channel` |
 | `humidity`          | Humidity in percent              | `address`, `channel` |
 | `sensor_exists`     | Sensor existence (1.0 or 0.0)    | `type`               |
-| `total_load`        | Total load in watt(W)            |                      |
-| `total_load_current`| Total load current in ampere(A)  |                      |
+| `total_power`       | Total load in Watts (W)          |                      |
+| `total_current`     | Total load current in Amperes (A)|                      |
 
 ## API Endpoints
 
 ### `/-/reload`
 
-**Method:** `POST, PUT`
+**Method:** `POST`, `PUT`  
 **Description:** Reloads the configuration without restarting the process.
 
 #### Example:
@@ -43,9 +43,8 @@ kill -s SIGHUP $(pidof pdu_exporter)
 
 ### `/pdu`
 
-**Method:** `GET`
-**Query Parameters:**
-
+**Method:** `GET`  
+**Query Parameters:**  
 * `target`: IP address or hostname of the PDU.
 
 #### Example:
@@ -53,35 +52,99 @@ kill -s SIGHUP $(pidof pdu_exporter)
 ```
 GET /pdu?target=192.168.1.1
 ```
+### `/api/pdu-names`
+
+**Method:** `GET`  
+**Description:** Returns a list of pdu names extracted from each PDU address block.  
+**Query Parameters:**  
+* `target`: IP address or hostname of the PDU.
+
+#### Example:
+```
+GET /api/pdu-names?target=192.168.1.1
+```
+#### Example Response (JSON):
+
+```
+{
+  "pdu_names": {
+    "pdu_1": "DC 01-01 A",
+    "pdu_2": "DC 01-01 B",
+    "pdu_3": "DC 02-02 A",
+    ...
+    "pdu_32": "DC 32-32 A"
+  }
+}
+```
 
 ### `/api/rack-names`
 
-**Method:** `GET`
-**Description:** Returns a list of rack names extracted from each PDU address block.
-
+**Method:** `GET`  
+**Description:** Returns a list of rack names extracted from each PDU address block.  
 **Query Parameters:**
 
 * `target`: IP address or hostname of the PDU.
 
 #### Example:
-
 ```
 GET /api/rack-names?target=192.168.1.1
 ```
-
 #### Example Response (JSON):
-
 ```
 {
   "rack_names": {
-    "rack_1": "# 1 Rack A",
-    "rack_2": "# 2 Rack B",
+    "rack_1": "DC 01-01",
+    "rack_2": "DC 02-02",
     ...
-    "rack_32": "# 32 Rack AF"
+    "rack_32": "DC 32-32"
   }
 }
 ```
+### `/api/rack-metrics`
 
+**Method:** `GET`  
+**Description:** Returns a metrics from each rack.  
+**Query Parameters:**
+
+* `target`: IP address or hostname of the PDU.
+
+#### Example:
+```
+GET /api/rack-metrics?target=192.168.1.1
+```
+#### Example Response (JSON):
+```
+{
+  "rack_metrics": {
+    "DC 01-01": [
+      {
+        "address": "5",
+        "name": "DC 01-01 A",
+        "voltage": 221.1,
+        "current": 2.3,
+        "power": 379.0
+      },
+      {
+        "address": "6",
+        "name": "DC 01-01 B",
+        "voltage": 219.9,
+        "current": 11.1,
+        "power": 2420.0
+      },
+      {
+        "address": "",
+        "name": "Total",
+        "voltage": 220.5,
+        "current": 13.400001,
+        "power": 2799.0
+      }
+    ],
+    "DC ...": [
+      ...
+    ]
+  }
+}
+```
 ## Prometheus Integration
 
 ### Sample Scrape Config:
@@ -234,7 +297,7 @@ docker compose up -d
 
 ## Limitations
 
-* Assumes the PDU `/status.cgi` response contains exactly 2016 elements.
+* Assumes the PDU `/status.cgi` response contains at least 2016 elements
 * Metrics parsing is tightly coupled with this structure.
 * Only supports plain HTTP (no TLS, no SNMP).
 

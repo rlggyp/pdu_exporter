@@ -78,7 +78,9 @@ pub async fn rack_names(
             continue;
         }
 
-        let rack_name = strip_suffix_ab(&data[i+1]).to_string();
+        let rack_name = strip_suffix_ab(&data[i+1])
+            .trim()
+            .to_string();
 
         rack_names.insert(rack_name);
     }
@@ -143,7 +145,9 @@ pub async fn rack_metrics(
     let mut rack_metrics: BTreeMap<String, Vec<Pdu>> = BTreeMap::new();
 
     for pdu in pdus {
-        let rack_name = strip_suffix_ab(&pdu.name).to_string();
+        let rack_name = strip_suffix_ab(&pdu.name)
+            .trim()
+            .to_string();
 
         if let Some(x) = rack_metrics.get_mut(&rack_name) {
             x.push(pdu);
