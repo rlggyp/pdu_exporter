@@ -12,14 +12,14 @@ opt-level = 3
 codegen-units = 1
 
 [dependencies]
-axum = { version = "0.8.8", features = ["tokio"] }
-base64 = "0.22.1"
-bcrypt = "0.19.0"
-blake3 = "1.8.5"
-getrandom = "0.4.2"
-log = "0.4.29"
+axum = { version = "0.8.9", features = ["tokio"] }
+base64 = "0.23.1"
+bcrypt = "0.19.3"
+blake3 = "1.8.7"
+getrandom = "0.4.3"
+log = "0.4.34"
 log4rs = "1.4.0"
-reqwest = "0.13.2"
-serde = { version = "1.0.228", features = ["derive"] }
+reqwest = "0.13.5"
+serde = { version = "1.0.229", features = ["derive"] }
 serde_yaml = "0.9.34"
-tokio = { version = "1.52.1", features = ["rt-multi-thread", "signal"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "signal"] }
