@@ -1,4 +1,4 @@
-use crate::{Error, config};
+use crate::{Error, config, pdu::RAW_DATA_LENGTH};
 
 use std::time::Duration;
 
@@ -51,7 +51,13 @@ impl Client {
             .map(|s| s.trim().into())
             .collect::<Vec<_>>()
             .into_boxed_slice();
-        
+
+        if data.len() < RAW_DATA_LENGTH {
+            log::debug!("Incomplete data from {}: expected at least {}, got {}", target, RAW_DATA_LENGTH, data.len());
+            return Err((StatusCode::BAD_GATEWAY, "Malformed or truncated response from device").into_response());
+        }
+
+        log::debug!("Successfully fetched data from {}", target);
         Ok(data)
     }
 }

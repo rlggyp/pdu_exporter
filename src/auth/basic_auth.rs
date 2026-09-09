@@ -89,7 +89,13 @@ impl BasicAuth {
 
         match self.credentials.get(&username) {
             Some(hash) => {
-                let verified = bcrypt::verify(password, &hash).unwrap_or(false);
+                let verified = match bcrypt::verify(password, &hash) {
+                    Ok(is_valid) => is_valid,
+                    Err(e) => {
+                        log::warn!("Bcrypt verification error for user '{}': {}", username, e);
+                        false
+                    }
+                };
 
                 if verified {
                     let hashed_credential = BasicAuth::hash_credential(&self.cache_key, &credential.encoded);
