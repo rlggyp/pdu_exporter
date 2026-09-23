@@ -43,6 +43,99 @@ pub async fn pdu_metrics(
     Ok((StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], process_metrics(&data)).into_response())
 }
 
+pub async fn pdu_metrics_json(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<HashMap<String, String>>
+) -> axum::response::Result<impl IntoResponse> {
+    log::debug!("pdu_metrics_json called with params: {:?}", params);
+    let data = fetch_pdu_data(&state, &params).await?;
+
+    let mut pdus: Vec<Pdu> = Vec::new();
+    let mut address: i8 = 1;
+
+    let mut total_current: f32 = 0.0;
+    let mut total_power: f32 = 0.0;
+    let mut temperatures: Vec<f32> = Vec::new();
+    let mut humidities: Vec<f32> = Vec::new();
+
+    for i in (0..RAW_DATA_LENGTH).step_by(METRIC_STEP) {
+        let name = data[i+1].to_string();
+
+        let current = data[i+10].parse::<f32>().unwrap_or(0.0);
+        let voltage = data[i+11].parse::<f32>().unwrap_or(0.0);
+        let power = data[i+12].parse::<f32>().unwrap_or(0.0);
+
+        let pdu = Pdu {
+            address: address.to_string(),
+            name,
+            current,
+            voltage,
+            power,
+        };
+
+        const TEMP_INDEX_OFFSET: usize = 15;
+
+        for j in 0..16 {
+            let index = i + TEMP_INDEX_OFFSET + (j * 3);
+            let channel = (j + 1).to_string();
+            if !data[index].is_empty() {
+                log::debug!("Processing temperature/humidity for address={}, channel={}", address, channel);
+
+                let temperature = data[index+1].parse::<f32>().unwrap_or(0.0);
+                let humidity = data[index+2].parse::<f32>().unwrap_or(0.0);
+
+                temperatures.push(temperature);
+                humidities.push(humidity);
+            } else {
+                log::debug!("No temperature/humidity data for address={}, channel={}", address, channel);
+            }
+        }
+
+        total_current += current;
+        total_power += power;
+
+        pdus.push(pdu);
+        address += 1;
+    }
+
+    let average_temperature = if !temperatures.is_empty() {
+        temperatures.iter().sum::<f32>() / temperatures.len() as f32
+    } else {
+        0.0
+    };
+
+    let average_humidity = if !humidities.is_empty() {
+        humidities.iter().sum::<f32>() / humidities.len() as f32
+    } else {
+        0.0
+    };
+
+    #[derive(serde::Serialize)]
+    struct Summary {
+        total_current: f32,
+        total_power: f32,
+        average_temperature: f32,
+        average_humidity: f32,
+    }
+
+    #[derive(serde::Serialize)]
+    struct Response {
+        pdu_metrics: Vec<Pdu>,
+        summary: Summary,
+    }
+
+    let summary = Summary {
+        total_current,
+        total_power,
+        average_temperature,
+        average_humidity
+    };
+
+    let response = Response { pdu_metrics: pdus, summary: summary};
+
+    Ok((StatusCode::OK, Json(response)).into_response())
+}
+
 pub async fn pdu_names(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>

@@ -106,6 +106,7 @@ async fn main() -> Result<(), Error> {
         .route("/-/reload", post(reload_config).put(reload_config))
         .route("/pdu", get(pdu::handler::pdu_metrics))
         .route("/api/pdu-names", get(pdu::handler::pdu_names))
+        .route("/api/pdu-metrics", get(pdu::handler::pdu_metrics_json))
         .route("/api/rack-names", get(pdu::handler::rack_names))
         .route("/api/rack-metrics", get(pdu::handler::rack_metrics))
         .route_layer(axum::middleware::from_fn_with_state(app_state.clone(), basic_auth))
